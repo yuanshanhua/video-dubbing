@@ -1,0 +1,76 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "video-dubbing"
+version = "1.0.0"
+description = "An AI powered tool to execute end-to-end video dubbing."
+keywords = ["video", "dubbing", "ai", "openai", "whisper", "llm"]
+authors = [{ name = "yuanshanhua" }]
+urls = { github = "https://github.com/yuanshanhua/video-dubbing" }
+readme = "README.md"
+license = "MIT"
+scripts = { dub = "video_dubbing.cli:cli" }
+requires-python = "==3.11"
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: MIT License",
+]
+dependencies = [
+    "aiolimiter>=1.2.1",
+    "edge-tts>=7.0.0",
+    "openai>=1.59.9",
+    "tomlkit>=0.13.2",
+    "pyyaml",
+]
+
+[project.optional-dependencies]
+asr = ["whisperx>=3.3.1"]
+npu = [
+    "whisperx>=3.3.1",
+    "openai-whisper",
+    "torch_npu==2.4.0",
+    "torch==2.4.0",
+    "torchaudio==2.4.0",
+    "decorator==5.1.1",
+    "psutil==6.1.1",
+    "numpy<2",           # cann 目前不兼容 numpy 2
+]
+
+[tool.uv]
+index-url = "https://pypi.tuna.tsinghua.edu.cn/simple"
+
+[tool.uv.pip]
+index-url = "https://mirrors.tuna.tsinghua.edu.cn/pypi/web/simple"
+
+[tool.ruff]
+line-length = 119
+
+[tool.ruff.lint]
+# Never enforce `E501` (line length violations).
+ignore = ["C901", "E501", "E741", "F402", "F823"]
+select = ["C", "E", "F", "I", "W"]
+
+# Ignore import violations in all `__init__.py` files.
+[tool.ruff.lint.per-file-ignores]
+"__init__.py" = ["E402", "F401", "F403", "F811"]
+"src/transformers/file_utils.py" = ["F401"]
+"src/transformers/utils/dummy_*.py" = ["F401"]
+
+[tool.ruff.lint.isort]
+lines-after-imports = 2
+known-first-party = ["transformers"]
+
+[tool.ruff.format]
+# Like Black, use double quotes for strings.
+quote-style = "double"
+
+# Like Black, indent with spaces, rather than tabs.
+indent-style = "space"
+
+# Like Black, respect magic trailing commas.
+skip-magic-trailing-comma = false
+
+# Like Black, automatically detect the appropriate line ending.
+line-ending = "auto"
