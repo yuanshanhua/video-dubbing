@@ -261,6 +261,7 @@ def cli():
         logger.info(f"processing task {i}: {task_name}")
         video = general_args.videos[i] if general_args.videos else None
         output_dir = Path(general_args.output_dir) if general_args.output_dir else task_file.parent
+        output_dir.mkdir(parents=True, exist_ok=True)
         if general_args.asr:
             asr_sub = output_dir / f"{task_name}.asr.srt"
         else:
