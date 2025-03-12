@@ -198,11 +198,12 @@ def cli():
                     sub.file.unlink(missing_ok=True)
                 sub.file = ass_p
             await add_subs_to_video(video, subs, video.with_suffix(".sub.mkv"))
+            if general_args.debug:
+                return
             # clean ass
-            if not general_args.debug:
-                for sub in subs:
-                    logger.info(f"remove: {sub.file}")
-                    sub.file.unlink(missing_ok=True)
+            for sub in subs:
+                logger.info(f"remove: {sub.file}")
+                sub.file.unlink(missing_ok=True)
             # clean video
             if video not in general_args.videos:
                 logger.info(f"remove: {video}")
