@@ -26,7 +26,7 @@ class SubtitleTrack:
     style: str | None = None
 
 
-async def _run_command(command: list[str], task_name: str) -> tuple[bool, bytes, bytes]:
+async def _run_command(command: list[str], task_name: str, omit_error=False) -> tuple[bool, bytes, bytes]:
     """
     执行命令，并处理输出和错误
     """
@@ -38,6 +38,8 @@ async def _run_command(command: list[str], task_name: str) -> tuple[bool, bytes,
     success = process.returncode == 0
     if not success:
         logger.error(f"{task_name} failed: {stderr.decode()}")
+        if not omit_error:
+            raise RuntimeError(f"{task_name} failed: {stderr.decode()}")
     return success, stdout, stderr
 
 
