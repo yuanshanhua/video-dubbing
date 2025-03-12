@@ -237,6 +237,7 @@ async def add_subs_to_video(
     """
     将字幕添加到视频.
 
+    此方法会移除视频中原有的字幕和其他数据, 仅保留音视频流.
     Args:
         soft: 使用软字幕模式, 无须重编码. 此模式须输出为 MKV 格式.
     """
@@ -260,8 +261,6 @@ async def add_subs_to_video(
         "-map",
         "0:a",
         *maps,
-        "-map",
-        "0:s?",
         "-c",
         "copy",
         "-y",
