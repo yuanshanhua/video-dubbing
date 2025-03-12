@@ -115,17 +115,59 @@ def cli():
     )
     tts_processor = TTSProcessor(tts_args.tts_req_rate, 10)
 
+    def _asr(
+        task_name: str,
+        video: Path,
+        output_sub: Path,
+    ):
+        import whisperx
+
+        ts = time.time()
+        audio = whisperx.load_audio(str(video))
+        logger.info(f"[load] {time.time() - ts:.2f}s {task_name}")
+
+        ts = time.time()
+        tr = processor.transcribe(
+            audio=audio,
+            whisper_model=asr_args.model,
+            batch_size=8,
+            compute_type="int8",
+        )
+        logger.info(f"[transcribe] {time.time() - ts:.2f}s {task_name}")
+
+        if asr_args.align:
+            ts = time.time()
+            tr = processor.align(
+                t_result=tr,
+                audio=audio,
+            )
+            logger.info(f"[align] {time.time() - ts:.2f}s {task_name}")
+
+        if asr_args.diarize:
+            ts = time.time()
+            tr = processor.diarize(
+                audio=audio,
+                t_result=tr,
+                hf_token=asr_args.hf_token,
+            )
+            logger.info(f"[diarize] {time.time() - ts:.2f}s {task_name}")
+
+        r = tr["segments"]
+        if asr_args.align:  # split_segments 必须词级时间戳
+            r = split_segments(r, " ")  # type: ignore
+        SRT.from_segments(r).save(output_sub)  # type: ignore
+
     async def _translate_and_tts(
         task_name: str,
-        raw_srt: Path,
-        video: Path | None,
+        raw_sub: Path,
+        raw_video: Path | None,
     ):
         try:
             if general_args.translate:
-                adjusted_srt = raw_srt.with_suffix(".adjusted.srt")
-                translated_srt = raw_srt.with_suffix(".trans.srt")
-                billing_srt = raw_srt.with_suffix(".billing.srt")
-                en_srt = SRT.from_file(raw_srt).correct_time()
+                adjusted_srt = raw_sub.with_suffix(".adjusted.srt")
+                translated_srt = raw_sub.with_suffix(".trans.srt")
+                billing_srt = raw_sub.with_suffix(".billing.srt")
+                en_srt = SRT.from_file(raw_sub).correct_time()
                 if translate_args.remove_ellipsis:
                     en_srt = en_srt.remove_ellipsis()
                 if en_srt.sentences_percent() > 0.8:  # magic number, 后续可允许配置
@@ -146,11 +188,11 @@ def cli():
                 zh_srt.save(translated_srt)
                 en_srt.concat_text(zh_srt).save(billing_srt)
             else:
-                translated_srt = raw_srt
+                translated_srt = raw_sub
                 billing_srt = None
             if general_args.tts:
-                tts_audio = raw_srt.with_suffix("." + tts_args.audio_format)
-                tts_srt = raw_srt.with_suffix(".tts.srt")
+                tts_audio = raw_sub.with_suffix("." + tts_args.audio_format)
+                tts_srt = raw_sub.with_suffix(".tts.srt")
                 srt = SRT.from_file(translated_srt).correct_time()
                 if srt.sentences_percent() > 0.8:
                     srt = srt.merge_sentences(min_length=0)
@@ -158,7 +200,7 @@ def cli():
                     srt = srt.merge_by_length()
                 if general_args.debug:
                     srt.save(tts_srt)
-                tmp_dir = random.Random(raw_srt.as_posix()).randint(0, 1000000)
+                tmp_dir = random.Random(raw_sub.as_posix()).randint(0, 1000000)
                 ts = time.time()
                 await tts_processor.srt_tts(
                     srt=srt,
@@ -169,19 +211,19 @@ def cli():
                     debug=general_args.debug,
                 )
                 logger.info(f"[tts] {time.time() - ts:.2f}s {task_name}")
-                if video and tts_args.add_track:
-                    tts_video = video.with_suffix(".tts.mp4")
-                    await add_audio_to_video(tts_audio, video, tts_video, tts_args.track_title)
-                    video = tts_video
+                if raw_video and tts_args.add_track:
+                    tts_video = raw_sub.with_suffix(".tts.mp4")
+                    await add_audio_to_video(tts_audio, raw_video, tts_video, tts_args.track_title)
+                    raw_video = tts_video
                     if not general_args.debug:
                         logger.info(f"remove: {tts_audio}")
                         os.remove(tts_audio)
-            if video is None:
+            if raw_video is None:
                 return
             # add subtitles to video
             subs: list[SubtitleTrack] = []
             if sub_args.add_asr_sub:
-                subs.append(SubtitleTrack(raw_srt, sub_args.asr_sub_title, sub_args.asr_sub_style))
+                subs.append(SubtitleTrack(raw_sub, sub_args.asr_sub_title, sub_args.asr_sub_style))
             if sub_args.add_trans_sub and general_args.translate:
                 subs.append(SubtitleTrack(translated_srt, sub_args.trans_sub_title, sub_args.trans_sub_style))
             if sub_args.add_bilingual_sub and billing_srt:
@@ -197,7 +239,7 @@ def cli():
                     logger.info(f"remove: {sub.file}")
                     sub.file.unlink(missing_ok=True)
                 sub.file = ass_p
-            await add_subs_to_video(video, subs, video.with_suffix(".sub.mkv"))
+            await add_subs_to_video(raw_video, subs, raw_sub.with_suffix(".sub.mkv"))
             if general_args.debug:
                 return
             # clean ass
@@ -205,9 +247,9 @@ def cli():
                 logger.info(f"remove: {sub.file}")
                 sub.file.unlink(missing_ok=True)
             # clean video
-            if video not in general_args.videos:
-                logger.info(f"remove: {video}")
-                video.unlink(missing_ok=True)
+            if raw_video not in general_args.videos:
+                logger.info(f"remove: {raw_video}")
+                raw_video.unlink(missing_ok=True)
         except Exception as e:
             logger.error(f"Translate & TTS {task_name} failed: {e}")
             with lock:
@@ -217,56 +259,18 @@ def cli():
         task_file = general_args.videos[i] if general_args.videos else general_args.subtitles[i]
         task_name = task_file.stem
         logger.info(f"processing task {i}: {task_name}")
+        video = general_args.videos[i] if general_args.videos else None
+        output_dir = Path(general_args.output_dir) if general_args.output_dir else task_file.parent
+        if general_args.asr:
+            asr_sub = output_dir / f"{task_name}.asr.srt"
+        else:
+            asr_sub = general_args.subtitles[i]
         try:
-            # 参数检查保证的合法情况:
-            # 1. videos>0, subtitles==0, asr=True
-            # 2. videos==0, subtitles>0, asr=False
-            # 3. videos==subtitles
-            if general_args.asr:  # 1|3
-                import whisperx
-
-                video = general_args.videos[i]
-                output_srt = video.with_suffix(".srt")
-                ts = time.time()
-                audio = whisperx.load_audio(video.as_posix())
-                logger.info(f"[load] {time.time() - ts:.2f}s {task_name}")
-
-                ts = time.time()
-                tr = processor.transcribe(
-                    audio=audio,
-                    whisper_model=asr_args.model,
-                    batch_size=8,
-                    compute_type="int8",
-                )
-                logger.info(f"[transcribe] {time.time() - ts:.2f}s {task_name}")
-
-                if asr_args.align:
-                    ts = time.time()
-                    tr = processor.align(
-                        t_result=tr,
-                        audio=audio,
-                    )
-                    logger.info(f"[align] {time.time() - ts:.2f}s {task_name}")
-
-                if asr_args.diarize:
-                    ts = time.time()
-                    tr = processor.diarize(
-                        audio=audio,
-                        t_result=tr,
-                        hf_token=asr_args.hf_token,
-                    )
-                    logger.info(f"[diarize] {time.time() - ts:.2f}s {task_name}")
-
-                r = tr["segments"]
-                if asr_args.align:  # split_segments 必须词级时间戳
-                    r = split_segments(r, " ")  # type: ignore
-                SRT.from_segments(r).save(output_srt)  # type: ignore
-            else:  # 2|3
-                output_srt = general_args.subtitles[i]
-                video = general_args.videos[i] if general_args.videos else None
-            if not general_args.translate and not general_args.tts:
-                continue
-            background_executor.execute(_translate_and_tts(task_name, output_srt, video))
+            if general_args.asr:
+                assert video is not None
+                _asr(task_name, video, asr_sub)
+            if general_args.translate or general_args.tts:
+                background_executor.execute(_translate_and_tts(task_name, asr_sub, video))
         except Exception as e:
             logger.error(f"ASR task {i} ({task_name}) failed: {e}")
             with lock:

@@ -92,6 +92,7 @@ class GeneralArgument:
     input_subtitles: list[str] = field(
         metadata={"help": "待处理的字幕文件 (srt 格式). 支持 glob 模式"}, default_factory=list
     )
+    output_dir: str | None = field(metadata={"help": "输出目录. 留空则使用输入文件所在目录"}, default=None)
     asr: bool = field(metadata={"help": "语音识别开关"}, default=True)
     translate: bool = field(metadata={"help": "翻译开关"}, default=True)
     tts: bool = field(metadata={"help": "语音合成开关"}, default=True)
@@ -102,6 +103,10 @@ class GeneralArgument:
         self._check_input()
 
     def _check_input(self):
+        # 合法情况:
+        # 1. videos>0, subtitles==0, asr=True
+        # 2. videos==0, subtitles>0, asr=False
+        # 3. videos==subtitles
         self.videos = list(itertools.chain.from_iterable([safe_glob(p) for p in self.input_videos]))
         self.subtitles = list(itertools.chain.from_iterable([safe_glob(p) for p in self.input_subtitles]))
         if not all(f.suffix == ".srt" for f in self.subtitles):

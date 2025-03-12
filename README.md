@@ -138,6 +138,8 @@ General:
                         待处理的视频文件 (default: [])
   --input_subtitles INPUT_SUBTITLES [INPUT_SUBTITLES ...], --input-subtitles INPUT_SUBTITLES [INPUT_SUBTITLES ...]
                         待处理的字幕文件 (srt 格式) (default: [])
+  --output_dir OUTPUT_DIR, --output-dir OUTPUT_DIR
+                        输出目录. 留空则使用输入文件所在目录 (default: None)
   --asr [ASR]           语音识别开关 (default: True)
   --translate [TRANSLATE]
                         翻译开关 (default: True)

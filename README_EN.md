@@ -132,6 +132,8 @@ General:
                         Videos to process (default: [])
   --input_subtitles INPUT_SUBTITLES [INPUT_SUBTITLES ...], --input-subtitles INPUT_SUBTITLES [INPUT_SUBTITLES ...]
                         Subtitle files to process (srt format) (default: [])
+  --output_dir OUTPUT_DIR, --output-dir OUTPUT_DIR
+                        Output directory. Use the input file directory if not set (default: None)
   --asr [ASR]           Speech recognition switch (default: True)
   --translate [TRANSLATE]
                         Translation switch (default: True)
