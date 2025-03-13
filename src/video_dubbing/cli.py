@@ -97,6 +97,9 @@ def cli():
     logger.debug(f"asr args: {asr_args}")
     logger.debug(f"translate args: {translate_args}")
     logger.debug(f"tts args: {tts_args}")
+    t_start = time.time()
+
+    # init processors
     if general_args.asr:
         # 由于 .asr 导入 whisperx, 而后者导入缓慢, 因此采取延迟导入, 以加快无须 asr 时的速度
         from .asr import ASRProcessor
@@ -115,6 +118,7 @@ def cli():
     )
     tts_processor = TTSProcessor(tts_args.tts_req_rate, 10)
 
+    # task func: asr
     def _asr(
         task_name: str,
         video: Path,
@@ -124,7 +128,7 @@ def cli():
 
         ts = time.time()
         audio = whisperx.load_audio(str(video))
-        logger.info(f"[load] {time.time() - ts:.2f}s {task_name}")
+        logger.info(f"[load] in {time.time() - ts:.2f}s: {task_name}")
 
         ts = time.time()
         tr = processor.transcribe(
@@ -133,7 +137,7 @@ def cli():
             batch_size=8,
             compute_type="int8",
         )
-        logger.info(f"[transcribe] {time.time() - ts:.2f}s {task_name}")
+        logger.info(f"[transcribe] in {time.time() - ts:.2f}s: <{task_name}>")
 
         if asr_args.align:
             ts = time.time()
@@ -141,7 +145,7 @@ def cli():
                 t_result=tr,
                 audio=audio,
             )
-            logger.info(f"[align] {time.time() - ts:.2f}s {task_name}")
+            logger.info(f"[align] in {time.time() - ts:.2f}s: {task_name}")
 
         if asr_args.diarize:
             ts = time.time()
@@ -150,13 +154,14 @@ def cli():
                 t_result=tr,
                 hf_token=asr_args.hf_token,
             )
-            logger.info(f"[diarize] {time.time() - ts:.2f}s {task_name}")
+            logger.info(f"[diarize] in {time.time() - ts:.2f}s: {task_name}")
 
         r = tr["segments"]
         if asr_args.align:  # split_segments 必须词级时间戳
             r = split_segments(r, " ")  # type: ignore
         SRT.from_segments(r).save(output_sub)  # type: ignore
 
+    # task func: translate & tts
     async def _translate_and_tts(
         task_name: str,
         raw_sub: Path,
@@ -184,7 +189,7 @@ def cli():
                     try_html=2 if translate_args.use_html else 0,
                     batch_size=translate_args.batch_size,
                 )
-                logger.info(f"[translate] {time.time() - ts:.2f}s {task_name}")
+                logger.info(f"[translate] in {time.time() - ts:.2f}s: {task_name}")
                 zh_srt.save(translated_srt)
                 en_srt.concat_text(zh_srt).save(billing_srt)
             else:
@@ -210,7 +215,7 @@ def cli():
                     cache_dir=f".cache/{tmp_dir}",
                     debug=general_args.debug,
                 )
-                logger.info(f"[tts] {time.time() - ts:.2f}s {task_name}")
+                logger.info(f"[tts] in {time.time() - ts:.2f}s: {task_name}")
                 if raw_video and tts_args.add_track:
                     tts_video = raw_sub.with_suffix(".tts.mp4")
                     await add_audio_to_video(tts_audio, raw_video, tts_video, tts_args.track_title)
@@ -251,7 +256,7 @@ def cli():
                 logger.info(f"remove: {raw_video}")
                 raw_video.unlink(missing_ok=True)
         except Exception as e:
-            logger.error(f"Translate & TTS {task_name} failed: {e}")
+            logger.error(f"Translate & TTS {task_name} failed: {e}", exc_info=True)
             with lock:
                 failed_tasks.append(("translate & tts: " + task_name, str(e)))
 
@@ -273,12 +278,12 @@ def cli():
             if general_args.translate or general_args.tts:
                 background_executor.execute(_translate_and_tts(task_name, asr_sub, video))
         except Exception as e:
-            logger.error(f"ASR task {i} ({task_name}) failed: {e}")
+            logger.error(f"ASR task {i} ({task_name}) failed: {e}", exc_info=True)
             with lock:
                 failed_tasks.append(("asr: " + task_name, str(e)))
 
     background_executor.wait_all()
-    logger.info("all tasks done")
+    logger.info(f"process all files in {time.time() - t_start:.2f}s")
     if failed_tasks:
         logger.error("failed tasks:")
         for task_name, error in failed_tasks:

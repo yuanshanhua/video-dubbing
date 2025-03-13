@@ -112,7 +112,7 @@ async def get_audio_snippet(
     """
     logger.debug(f"{input_file} (ss={start}s, dur={duration}s) -> {output_file}")
     if duration is not None and duration <= 0:
-        logger.warning(f"duration={duration} < 0")
+        logger.warning(f"duration={duration} < 0 (input={input_file}, start={start}, output={output_file})")
         duration = 0.01  # 仍创建 output
     command = [
         "ffmpeg",

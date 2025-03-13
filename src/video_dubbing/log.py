@@ -5,6 +5,7 @@ import sys
 
 
 logger = logging.getLogger("dub")
+logger.propagate = False
 logger.setLevel(logging.DEBUG)
 formatter = logging.Formatter(
     fmt="{asctime} [{levelname: ^7}] [{name}] <{funcName}> {message}",
