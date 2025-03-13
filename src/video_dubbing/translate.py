@@ -1,4 +1,5 @@
 import asyncio
+import re
 from typing import Callable, Optional
 
 from httpx import Timeout
@@ -60,14 +61,19 @@ class LLMTranslator:
         if res is None:
             return []
         list = []
-        if res.count("</L") != len(lines):
-            logger.warning("bad format")
+        # 已知的错误格式:
+        # - 行数不足
+        # - 不匹配的数字, 如 <L1>...</L2>
+        # - 重复 tag, 如 <L1><L1>...</L1></L1>
+        re.search(r"<L\d+>", res)
+        if res.count("</L") != len(lines) or res.count("<L") != len(lines):
+            logger.warning("bad format: tag count mismatch")
             return []
         for i in range(1, len(lines) + 1):
             start = res.find(f"<L{i}>")
             end = res.find(f"</L{i}>")
             if start == -1 or end == -1:
-                logger.warning("bad format")
+                logger.warning(f"bad format: L{i} not found")
                 return []
             list.append(res[start + 3 + len(str(i)) : end])
         return list
