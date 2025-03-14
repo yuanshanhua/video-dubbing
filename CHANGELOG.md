@@ -26,3 +26,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [1.0.0] - 2025-03-11
 
 - 发布第一个版本
+
+[1.1.0]: https://github.com/yuanshanhua/video-dubbing/compare/v1.0.0...v1.1.0
+[1.0.0]: https://github.com/yuanshanhua/video-dubbing/tree/v1.0.0
