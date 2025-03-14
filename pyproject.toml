@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "video-dubbing"
-version = "1.0.0"
+version = "1.1.0"
 description = "An AI powered tool to execute end-to-end video dubbing."
 keywords = ["video", "dubbing", "ai", "openai", "whisper", "llm"]
 authors = [{ name = "yuanshanhua" }]
