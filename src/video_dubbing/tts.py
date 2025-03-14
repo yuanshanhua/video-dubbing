@@ -9,14 +9,9 @@ from typing import Iterable, no_type_check
 
 from aiolimiter import AsyncLimiter
 from edge_tts import Communicate
+from rapidfuzz import fuzz
 
-from .ffmpeg import (
-    AudioSegment,
-    concat_tts_segs,
-    convert_to_wav,
-    get_audio_duration,
-    get_audio_snippet,
-)
+from .ffmpeg import AudioSegment, concat_tts_segs, convert_to_wav, get_audio_duration, get_audio_snippet
 from .log import logger
 from .srt import SRT, SRTEntry
 
@@ -32,10 +27,43 @@ class TTSWord:
 
 
 @dataclass
-class TTSAudio:
+class TTSLine:
     duration: float  # seconds
     path: str
     text: str
+
+
+def find_best_matches(lines, words):
+    """
+    找出 lines 中每行文本在 words 列表中的最佳起始索引
+
+    Args:
+        lines: 文本行列表
+        words: 短语或单词列表
+
+    Returns:
+        与 lines 等长的数组，表示每行在 words 中的起始索引
+    """
+    results: list[int] = []
+    # 设置搜索窗口, 每轮搜索的起始位置数
+    search_window = max(len(line) for line in lines) * 2
+
+    for line in lines:
+        best_start_idx = 0
+        best_match_ratio = -1
+        word_start_idx = 0 if not results else results[-1]  # 上一行的行首作为搜索起点
+        end_idx = min(word_start_idx + search_window, len(words))
+
+        for i in range(word_start_idx, end_idx):  # 遍历起点
+            for j in range(i + 1, end_idx):  # 遍历终点
+                combined = "".join(words[i:j])
+                ratio = fuzz.ratio(line, combined) / 100.0
+                if ratio > best_match_ratio:
+                    best_match_ratio = ratio
+                    best_start_idx = i
+
+        results.append(best_start_idx)
+    return results
 
 
 class TTSProcessor:
@@ -100,7 +128,8 @@ class TTSProcessor:
         lines: Iterable[str],
         voice: str,
         output_file: str,
-    ) -> list[TTSAudio]:
+        debug=False,
+    ) -> list[TTSLine]:
         """
         对多行文本进行语音合成. 保存各行音频为 WAV. 返回元数据.
         """
@@ -108,57 +137,36 @@ class TTSProcessor:
         if len(lines) == 0:
             return []
         if len(lines) == 1:
-            entries = await self._text_to_speech(lines[0], voice, output_file)
-            return [TTSAudio(duration=entries[-1].end, path=output_file, text=lines[0])]
+            tts_words = await self._text_to_speech(lines[0], voice, output_file)
+            return [TTSLine(duration=tts_words[-1].end, path=output_file, text=lines[0])]
 
         # 拼接所有行进行 TTS
-        full_text = "\n".join(lines)
-        entries = await self._text_to_speech(full_text, voice, output_file)
+        full_text = " ".join(lines)
+        tts_words = await self._text_to_speech(full_text, voice, output_file)
 
-        # 进行行匹配
-        word_index = 0
-        # line_starts 记录原字幕中每行对应的首个 TTSWord 在 entries 中的索引.
-        # 第 i 行即对应 entries[line_starts[i]:line_starts[i+1]] 这些 TTSWord.
-        line_starts = [0]
-        for line in lines:
-            # tts 返回的元数据总是包含原文中所有会发音的字符, 即可以认为是原文的离散子串.
-            # 因此, 第 i 个 TTSWord 一定有与之对应的第 i+invalid 个字符,
-            # 其中 invalid >= 0 表示此前的不发音字符数. 我们只需要逐步增大 invalid 直到找到匹配.
-            invalid = 0
-            while invalid < len(line) and word_index < len(entries):
-                word = entries[word_index]
-                r = line.find(word.text, invalid)
-                if r == -1:
-                    # 当 word 与原文无法匹配时, 认为本行匹配已完成.
-                    break
-                    # 有一种意料之外的情况, 即此 word 确实不是原文的子串,
-                    # 在这种情况下, 必须跳过此 word, 否则会导致后续的匹配错误.
-                    # 这一现象目前尚未观测到, 但考虑到 edge_tts API 并未做出保证, 因此保留此处.
-                    if word.text not in full_text:
-                        word_index += 1
-                        # 此 TTSWord 尽管不匹配, 但必然与原文至少一个字符对应, 因此增加 invalid 总是安全的.
-                        invalid += 1
-                else:
-                    word_index += 1
-                    invalid += r - invalid + 1
-            # 此时 word_index 指向下一行对应的首个 TTSWord.
-            if word_index < len(entries):
-                line_starts.append(word_index)
-            continue
+        # 定位每行在 TTS 结果中的起始索引
+        words = [w.text for w in tts_words]
+        line_starts = find_best_matches(lines, words)
 
         file_path_prefix = os.path.splitext(output_file)[0]
         wav_path = file_path_prefix + ".wav"
         await convert_to_wav(output_file, wav_path)
         res = []
         for i in range(len(line_starts)):
-            segment_start = entries[line_starts[i]].start
+            segment_start = tts_words[line_starts[i]].start
             duration = None
             if i < len(line_starts) - 1:
-                duration = entries[line_starts[i + 1] - 1].end - segment_start
+                duration = tts_words[line_starts[i + 1] - 1].end - segment_start
+                if debug:
+                    matched_text = " ".join(w.text for w in tts_words[line_starts[i] : line_starts[i + 1]])
+                    logger.debug(f"line {i + 1}: {lines[i]} -> {matched_text}")
+            elif debug:
+                matched_text = " ".join(w.text for w in tts_words[line_starts[i] :])
+                logger.debug(f"line {i + 1}: {lines[i]} -> {matched_text}")
             line_output = f"{file_path_prefix}_line{i + 1}.wav"
             await get_audio_snippet(wav_path, segment_start, duration, line_output)
             res.append(
-                TTSAudio(
+                TTSLine(
                     duration=await get_audio_duration(line_output),
                     path=line_output,
                     text=lines[i],
@@ -207,14 +215,14 @@ class TTSProcessor:
         async def _task(
             entries: list[SRTEntry],
             limiter: AsyncLimiter,
-        ) -> list[TTSAudio]:
+        ) -> list[TTSLine]:
             duration = entries[-1].end - entries[0].start
             name = f"({entries[0].index}){len(entries)}_{duration:.2f}s.mp3"
             path = os.path.join(cache_dir, name)
             if os.path.exists(path):
                 logger.info(f"use tts cache {name}")
                 return [
-                    TTSAudio(
+                    TTSLine(
                         duration=await get_audio_duration(f"{os.path.splitext(path)[0]}_line{i + 1}.wav"),
                         path=f"{os.path.splitext(path)[0]}_line{i + 1}.wav",
                         text=srt[i].text,
@@ -222,7 +230,7 @@ class TTSProcessor:
                     for i in range(len(entries))
                 ]
             async with limiter:
-                return await self._lines_to_speech(SRT(entries).texts(), voice, path)
+                return await self._lines_to_speech(SRT(entries).texts(), voice, path, debug)
 
         res = await asyncio.gather(*[_task(srt[s:e], self._limiter) for s, e in section_indexes])
         segs = self._build_segments(res, srt)
@@ -232,7 +240,7 @@ class TTSProcessor:
 
     @staticmethod
     def _build_segments(
-        tts_res: list[list[TTSAudio]],
+        tts_res: list[list[TTSLine]],
         srt: SRT,
         borrow_interval=0.5,
         min_borrow=1.0,

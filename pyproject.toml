@@ -23,6 +23,7 @@ dependencies = [
     "openai>=1.59.9",
     "tomlkit>=0.13.2",
     "pyyaml",
+    "rapidfuzz>=3.12.2",
 ]
 
 [project.optional-dependencies]
@@ -39,10 +40,10 @@ npu = [
 ]
 
 [tool.uv]
-index-url = "https://pypi.tuna.tsinghua.edu.cn/simple"
+index-url = "http://mirrors.aliyun.com/pypi/simple"
 
 [tool.uv.pip]
-index-url = "https://mirrors.tuna.tsinghua.edu.cn/pypi/web/simple"
+index-url = "http://mirrors.aliyun.com/pypi/simple"
 
 [tool.ruff]
 line-length = 119

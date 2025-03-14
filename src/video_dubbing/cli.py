@@ -166,12 +166,17 @@ def cli():
         task_name: str,
         raw_sub: Path,
         raw_video: Path | None,
+        output_dir: Path | None,
     ):
+        # 基准输出文件名. 非实际文件
+        output_file = output_dir / f"{task_name}" if output_dir else raw_sub
+        # 用于添加字幕的视频文件. 可能是原视频或添加音轨后的视频
+        add_sub_input_video = raw_video
         try:
             if general_args.translate:
-                adjusted_srt = raw_sub.with_suffix(".adjusted.srt")
-                translated_srt = raw_sub.with_suffix(".trans.srt")
-                billing_srt = raw_sub.with_suffix(".billing.srt")
+                adjusted_srt = output_file.with_suffix(".adjusted.srt")
+                translated_srt = output_file.with_suffix(".trans.srt")
+                billing_srt = output_file.with_suffix(".billing.srt")
                 en_srt = SRT.from_file(raw_sub).correct_time()
                 if translate_args.remove_ellipsis:
                     en_srt = en_srt.remove_ellipsis()
@@ -196,8 +201,8 @@ def cli():
                 translated_srt = raw_sub
                 billing_srt = None
             if general_args.tts:
-                tts_audio = raw_sub.with_suffix("." + tts_args.audio_format)
-                tts_srt = raw_sub.with_suffix(".tts.srt")
+                tts_audio = output_file.with_suffix("." + tts_args.audio_format)
+                tts_srt = output_file.with_suffix(".tts.srt")
                 srt = SRT.from_file(translated_srt).correct_time()
                 if srt.sentences_percent() > 0.8:
                     srt = srt.merge_sentences(min_length=0)
@@ -217,13 +222,13 @@ def cli():
                 )
                 logger.info(f"[tts] in {time.time() - ts:.2f}s: {task_name}")
                 if raw_video and tts_args.add_track:
-                    tts_video = raw_sub.with_suffix(".tts.mp4")
+                    tts_video = output_file.with_suffix(".tts.mp4")
                     await add_audio_to_video(tts_audio, raw_video, tts_video, tts_args.track_title)
-                    raw_video = tts_video
+                    add_sub_input_video = tts_video
                     if not general_args.debug:
                         logger.info(f"remove: {tts_audio}")
                         os.remove(tts_audio)
-            if raw_video is None:
+            if add_sub_input_video is None:
                 return
             # add subtitles to video
             subs: list[SubtitleTrack] = []
@@ -244,7 +249,7 @@ def cli():
                     logger.info(f"remove: {sub.file}")
                     sub.file.unlink(missing_ok=True)
                 sub.file = ass_p
-            await add_subs_to_video(raw_video, subs, raw_sub.with_suffix(".sub.mkv"))
+            await add_subs_to_video(add_sub_input_video, subs, output_file.with_suffix(".sub.mkv"))
             if general_args.debug:
                 return
             # clean ass
@@ -252,9 +257,9 @@ def cli():
                 logger.info(f"remove: {sub.file}")
                 sub.file.unlink(missing_ok=True)
             # clean video
-            if raw_video not in general_args.videos:
+            if raw_video and add_sub_input_video != raw_video:  # 实际上此处 raw_video 一定非 None
                 logger.info(f"remove: {raw_video}")
-                raw_video.unlink(missing_ok=True)
+                add_sub_input_video.unlink(missing_ok=True)
         except Exception as e:
             logger.error(f"Translate & TTS {task_name} failed: {e}", exc_info=True)
             with lock:
@@ -276,7 +281,7 @@ def cli():
                 assert video is not None
                 _asr(task_name, video, asr_sub)
             if general_args.translate or general_args.tts:
-                background_executor.execute(_translate_and_tts(task_name, asr_sub, video))
+                background_executor.execute(_translate_and_tts(task_name, asr_sub, video, output_dir))
         except Exception as e:
             logger.error(f"ASR task {i} ({task_name}) failed: {e}", exc_info=True)
             with lock:
