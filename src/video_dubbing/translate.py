@@ -1,5 +1,6 @@
 import asyncio
 import re
+from logging import Logger
 from typing import Callable, Optional
 
 from httpx import Timeout
@@ -32,12 +33,14 @@ class LLMTranslator:
         model: str,
         timeout: Timeout = Timeout(None, connect=10),
         req_rate: float = 1,
+        llm_msg_logger: Logger | None = None,
     ):
         self.client = LLMClient(
             api_key=api_key,
             base_url=base_url,
             timeout=timeout,
             req_rate=req_rate,
+            msg_logger=llm_msg_logger,
         )
         self.model = model
 

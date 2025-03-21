@@ -1,5 +1,6 @@
 import asyncio
 import time
+from logging import Logger
 from typing import Optional
 
 from aiolimiter import AsyncLimiter
@@ -22,6 +23,7 @@ class LLMClient:
         timeout: Timeout,
         req_rate: float,
         max_concurrent: int = 20,
+        msg_logger: Logger | None = None,
     ):
         self.client = AsyncOpenAI(
             api_key=api_key,
@@ -30,6 +32,10 @@ class LLMClient:
         )
         self.sem = asyncio.Semaphore(max_concurrent)
         self.limiter = AsyncLimiter(req_rate, 1)  # todo: allow to configure
+        if msg_logger:
+            self.log_msg = msg_logger.info
+        else:
+            self.log_msg = lambda *_, **__: None
 
     async def ask(
         self,
@@ -56,5 +62,11 @@ class LLMClient:
                     logger.warning(f"wait and retry in {count}s")
                     time.sleep(count)
                     count *= 2
-        logger.debug(f"System:\n{system_prompt}\nUser:\n{user_prompt}\nAssistant:\n{chat.choices[0].message.content}")
+        reasoning_content = getattr(chat.choices[0].message, "reasoning_content", None)
+        self.log_msg(f"[System] {system_prompt}")
+        if user_prompt:
+            self.log_msg(f"[User] {user_prompt}")
+        if reasoning_content:
+            self.log_msg(f"[Reasoning] {reasoning_content}")
+        self.log_msg(f"[LLM] {chat.choices[0].message.content}")
         return chat.choices[0].message.content

@@ -17,7 +17,7 @@ from .ass import ASS, Style
 from .executor import AsyncBackgroundExecutor
 from .ffmpeg import SubtitleTrack, add_audio_to_video, add_subs_to_video, convert_any
 from .hf_argparser import HfArgumentParser
-from .log import log_to_console, log_to_file, logger
+from .log import get_llm_msg_logger, log_to_console, log_to_file, logger
 from .split import split_segments
 from .srt import SRT
 from .translate import LLMTranslator, translate_srt
@@ -85,6 +85,10 @@ def cli():
     log_level = DEBUG if general_args.debug else INFO
     log_to_file(general_args.log_dir, log_level)
     log_to_console(log_level)
+    if general_args.debug and general_args.log_dir:
+        llm_msg_logger = get_llm_msg_logger(general_args.log_dir, "llm.msg")
+    else:
+        llm_msg_logger = None
 
     # setup recording
     lock = threading.Lock()
@@ -115,6 +119,7 @@ def cli():
         model=translate_args.llm_model,
         timeout=Timeout(None, connect=5.0),
         req_rate=translate_args.llm_req_rate,
+        llm_msg_logger=llm_msg_logger,
     )
     tts_processor = TTSProcessor(tts_args.tts_req_rate, 10)
 
