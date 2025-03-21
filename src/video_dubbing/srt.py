@@ -455,7 +455,7 @@ class SRT:
         logger.debug(f"puncs='{puncs}'")
         count = 0
         for entry in self:
-            if entry.text[-1] in puncs:
+            if entry.text and entry.text[-1] in puncs:
                 count += 1
         logger.debug(f"{count} / {len(self)} = {count / len(self) * 100:.2f}%")
         return count / len(self)
