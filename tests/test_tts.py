@@ -1,4 +1,7 @@
-from video_dubbing.tts import find_best_matches
+import unittest
+
+from video_dubbing.srt import SRT, SRTEntry
+from video_dubbing.tts import TTSLine, TTSProcessor, find_best_matches
 
 
 lines = [
@@ -503,13 +506,58 @@ words = [
 ]
 
 
-def test_fuzzy_matcher():
-    results = find_best_matches(lines, words)
-    print(f"匹配结果: {results}")
-    ends = [results[i] for i in range(1, len(lines))] + [None]
-    for i, (line, start, end) in enumerate(zip(lines, results, ends)):
-        print(f"{i}: {line} -> {''.join(words[start:end])}")
+class TestTTS(unittest.TestCase):
+    def _test_fuzzy_matcher(self):
+        results = find_best_matches(lines, words)
+        print(f"匹配结果: {results}")
+        ends = [results[i] for i in range(1, len(lines))] + [None]
+        for i, (line, start, end) in enumerate(zip(lines, results, ends)):
+            print(f"{i}: {line} -> {''.join(words[start:end])}")
+
+    def test_adjust_time(self):
+        srt = SRT(
+            [
+                SRTEntry(index=1, start=0.0, end=2.0, text=""),  # 2.0
+                SRTEntry(index=2, start=2.0, end=5.0, text=""),  # 3.0
+                SRTEntry(index=3, start=5.0, end=8.0, text=""),  # 3.0
+                SRTEntry(index=4, start=8.0, end=10.0, text=""),  # 2.0
+            ]
+        )
+
+        # Test case 1: All TTS durations match SRT durations
+        tts_res = [
+            [TTSLine(duration=2.0, path="", text="")],
+            [TTSLine(duration=3.0, path="", text="")],
+            [TTSLine(duration=3.0, path="", text="")],
+            [TTSLine(duration=2.0, path="", text="")],
+        ]
+
+        segments = TTSProcessor._adjust_time(tts_res, srt)
+        self.assertEqual(len(segments), 4)
+        self.assertEqual(segments[0].start, 0.0)
+        self.assertEqual(segments[0].expected_dur, 2.0)
+        self.assertEqual(segments[0].actual_dur, 2.0)
+
+        # Test case 2: Some TTS durations exceed SRT durations (need to borrow time)
+        tts_res = [
+            [TTSLine(duration=1.5, path="", text="")],  # has 0.5, should borrow 0.4
+            [TTSLine(duration=4.0, path="", text="")],  # need 1.0, can borrow 0.8
+            [TTSLine(duration=2.5, path="", text="")],  # has 0.5, should borrow 0.4
+            [TTSLine(duration=2.0, path="", text="")],
+        ]
+
+        segments = TTSProcessor._adjust_time(tts_res, srt, min_borrow=0.2)
+        self.assertEqual(len(segments), 4)
+        # Line 2 should borrow from line 1/3
+        self.assertAlmostEqual(segments[0].expected_dur, 1.6)
+        self.assertAlmostEqual(segments[0].actual_dur, 1.5)
+        self.assertAlmostEqual(segments[1].start, 1.6)
+        self.assertAlmostEqual(segments[1].expected_dur, 3.8)
+        self.assertAlmostEqual(segments[1].actual_dur, 4.0)
+        self.assertAlmostEqual(segments[2].start, 5.4)
+        self.assertAlmostEqual(segments[2].expected_dur, 2.6)
+        self.assertAlmostEqual(segments[2].actual_dur, 2.5)
 
 
 if __name__ == "__main__":
-    test_fuzzy_matcher()
+    unittest.main()

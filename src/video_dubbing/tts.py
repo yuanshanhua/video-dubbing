@@ -233,45 +233,46 @@ class TTSProcessor:
                 return await self._lines_to_speech(SRT(entries).texts(), voice, path, debug)
 
         res = await asyncio.gather(*[_task(srt[s:e], self._limiter) for s, e in section_indexes])
-        segs = self._build_segments(res, srt)
+        segs = self._adjust_time(res, srt)
         await concat_tts_segs(segs, output_file, cache_dir=cache_dir)
         if not debug:
             shutil.rmtree(cache_dir)
 
     @staticmethod
-    def _build_segments(
+    def _adjust_time(
         tts_res: list[list[TTSLine]],
         srt: SRT,
-        borrow_interval=0.5,
         min_borrow=1.0,
     ) -> list[AudioSegment]:
         """
-        根据 TTS 信息调整时间轴使时长均匀.
+        根据 TTS 发音长度调整音频时间轴以避免加速.
 
-        例如, 由于翻译时 LLM 输出不稳定, 可能出现行间串扰, 导致某些持续时间很短的行却对应了较长的文本, 或者反之.
-        此函数尝试找到并纠正这种情况, 以避免后续音频合成中出现极端的加速或减速.
+        翻译算法可保证原文和译文字幕的总行数一定相等, 但无法保证其发音时长的对应. 这是因为:
+        1. 二者的信息密度和语速不同. 例如, 原文可能有重复和停顿, 经过翻译及 TTS 消除了语义/语音的冗余, 从而导致 TTS 时长较短.
+        2. 翻译时 LLM 输出不稳定, 可能出现行间串扰. 如某行本来是短句, 但翻译后包含了部分相邻句的内容, 从而导致 TTS 时长较长.
+        当 TTS 时长过长时, 必须加速该行才能对齐原时间轴, 影响观感. 此函数尝试取长补短, 以减少加速.
 
         Args:
             tts_res: TTS 结果, 每个元素恰代表一行对应的音频.
             srt: 原字幕.
-            borrow_interval: 间隔小于此长度的行之间可调整.
             min_borrow: 最小借用时长. 避免过多无意义的小调整.
         """
         min_borrow = max(min_borrow, 0.1)
         audios = [a for s in tts_res for a in s]
-        srt = srt.copy()
+        # 填充时间戳, 使所有字幕行紧邻
+        srt = srt.copy().fill_time()
         if len(audios) != len(srt):
             logger.warning(f"TTS 分割结果与原字幕行数不一致: {len(audios)} != {len(srt)}")
 
-        # 标记每行的时间盈余情况, 为正可以借出
+        # 标记每行的时间盈余 (字幕时长-音频时长), 为正表示可以借出
         has_time = [srt[i].end - srt[i].start - audios[i].duration for i in range(len(audios))]
         for i in range(len(audios)):
-            if has_time[i] >= 0:
+            if has_time[i] >= 0:  # 本行无需借入
                 continue
-            # 出于简单和稳定, 我们现在只考虑借前后两行的时间
-            # 借前一行
-            if i > 0 and has_time[i - 1] > min_borrow and srt[i].start - srt[i - 1].end < borrow_interval:
-                # 0.1 是一个余量, 避免借出后时长太极限
+            # 出于简单和稳定, 只考虑借前后两行的时间.
+            # 借前一行 (提前当前行)
+            if i > 0 and has_time[i - 1] > min_borrow:
+                # 0.1 是一个余量, 即调整后至少尚有 0.1s 间隔
                 borrow = min(-has_time[i], has_time[i - 1] - 0.1)
                 has_time[i] += borrow
                 has_time[i - 1] -= borrow
@@ -280,19 +281,14 @@ class TTSProcessor:
             # 无须再借
             if has_time[i] >= 0:
                 continue
-            # 借后一行
-            if (
-                i + 1 < len(audios)
-                and has_time[i + 1] > min_borrow
-                and srt[i + 1].start - srt[i].end < borrow_interval
-            ):
+            # 借后一行 (推后后一行)
+            if i + 1 < len(audios) and has_time[i + 1] > min_borrow:
                 borrow = min(-has_time[i], has_time[i + 1] - 0.1)
                 has_time[i] += borrow
                 has_time[i + 1] -= borrow
                 srt[i].end += borrow
                 srt[i + 1].start += borrow
 
-        srt = srt.fill_time()
         return [
             AudioSegment(
                 a.path,
