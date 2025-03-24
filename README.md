@@ -188,7 +188,7 @@ TTS:
                         TTS 音轨标题. 默认使用 voice 名称 (default: None)
 
 Subtitle:
-  --soft [SOFT]         添加字幕方式 (True: 软 / False: 硬) (目前仅支持软字幕) (default: True)
+  --soft [SOFT]         添加软/硬字幕到视频. 添加硬字幕时仅使用双语字幕及其样式 (default: True)
   --add_asr_sub [ADD_ASR_SUB], --add-asr-sub [ADD_ASR_SUB]
                         将语音识别字幕添加到视频 (default: True)
   --asr_sub_title ASR_SUB_TITLE, --asr-sub-title ASR_SUB_TITLE

@@ -65,7 +65,7 @@ class TTSArgument:
 @dataclass
 class SubtitleArgument:
     _argument_group_name = "Subtitle"
-    soft: bool = field(metadata={"help": "添加字幕方式 (True: 软 / False: 硬) (目前仅支持软字幕)"}, default=True)
+    soft: bool = field(metadata={"help": "添加软/硬字幕到视频. 添加硬字幕时仅使用双语字幕及其样式"}, default=True)
     add_asr_sub: bool = field(metadata={"help": "将语音识别字幕添加到视频"}, default=True)
     asr_sub_title: str | None = field(metadata={"help": "语音识别字幕标题"}, default=None)
     asr_sub_style: str | None = field(
@@ -82,7 +82,7 @@ class SubtitleArgument:
     bilingual_sub_style: str | None = field(metadata={"help": "双语字幕样式"}, default=None)
 
     def __post_init__(self):
-        self.soft = True  # 目前仅支持软字幕
+        pass
 
 
 @dataclass

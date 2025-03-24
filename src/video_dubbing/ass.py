@@ -522,7 +522,7 @@ class Style(_Line):
                 continue
             value = _Field.dump(field.default)
             fields.append(f"{field.name}={value}")
-        return ", ".join(fields)
+        return ",".join(fields)
 
 
 class _Event(_Line):

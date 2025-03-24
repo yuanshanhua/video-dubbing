@@ -182,7 +182,7 @@ TTS:
                         TTS track title. Default uses voice name (default: None)
 
 Subtitle:
-  --soft [SOFT]         Subtitle addition method (True: soft / False: hard) (currently only supports soft subtitles) (default: True)
+  --soft [SOFT]         Add soft/hard subtitles to video. If set to hard, only bilingual subtitle and its style will be applied (default: True)
   --add_asr_sub [ADD_ASR_SUB], --add-asr-sub [ADD_ASR_SUB]
                         Add speech recognition subtitles to video (default: True)
   --asr_sub_title ASR_SUB_TITLE, --asr-sub-title ASR_SUB_TITLE

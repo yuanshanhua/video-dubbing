@@ -26,9 +26,29 @@ class SubtitleTrack:
     style: str | None = None
 
 
+@dataclass
+class VideoInfo:
+    """视频文件的基本信息"""
+
+    width: int | None = None  # 视频宽度
+    height: int | None = None  # 视频高度
+    bit_rate: int | None = None  # 比特率
+    codec_name: str | None = None  # 编码器名称
+    duration: float | None = None  # 视频时长（秒）
+
+
 async def _run_command(command: list[str], task_name: str, omit_error=False) -> tuple[bool, bytes, bytes]:
     """
-    执行命令，并处理输出和错误
+    异步执行命令.
+
+    Args:
+        omit_error: 若为 True, 则不会在执行出错时抛出异常.
+
+    Returns:
+        tuple[bool, bytes, bytes]: 执行是否成功, 标准输出, 标准错误.
+
+    Raises:
+        RuntimeError: 若执行出错且 omit_error 为 False.
     """
     logger.debug(f"{task_name}: {command[0]} " + " ".join(f'"{c}"' for c in command[1:]) if len(command) > 1 else "")
     process = await asyncio.create_subprocess_exec(
@@ -230,18 +250,15 @@ async def get_audio_duration(file: str | Path) -> float:
     return float(stdout.decode().strip())
 
 
-async def add_subs_to_video(
+async def add_soft_subs(
     video: Path,
     subs: list[SubtitleTrack],
     output: Path,
-    soft: bool = True,
 ):
     """
-    将字幕添加到视频.
+    将字幕添加到视频作为独立流.
 
-    此方法会移除视频中原有的字幕和其他数据, 仅保留音视频流.
-    Args:
-        soft: 使用软字幕模式, 无须重编码. 此模式须输出为 MKV 格式.
+    此方法输出必须为 mkv 格式以支持 srt/ass 字幕. 由于 mkv 仅 v/a/s 流类型, 因此会忽略原视频的字幕和其他数据, 仅保留其音视频流.
     """
     logger.info(f"({', '.join([str(s.file) for s in subs])}) + {video} -> {output}")
     srt_inputs: list[str] = []
@@ -270,7 +287,74 @@ async def add_subs_to_video(
         "warning",
         str(output),
     ]
-    await _run_command(command, "add subtitles to video")
+    await _run_command(command, "add soft subtitles")
+
+
+async def add_hard_sub(
+    video: Path,
+    subtitle: Path,
+    output: Path,
+    *,
+    srt_style: str = "Fontname=Arial,Fontsize=13,PrimaryColour=&H00FFFF05,SecondaryColour=&H00FFFFFF,OutlineColour=&H00000000,BackColour=&H00000000,Bold=0,Italic=0,Underline=0,StrikeOut=0,ScaleX=100,ScaleY=100,Spacing=0.5,Angle=0,BorderStyle=1,Outline=0.5,Shadow=0.5,Alignment=2,MarginL=10,MarginR=10,MarginV=10,Encoding=1",
+    video_codec: str = "libx265",
+    video_params: dict | None = None,
+):
+    """
+    将字幕烧录到视频中作为硬字幕. 支持 srt/ass 字幕.
+
+    Args:
+        srt_style: 指定 srt 字幕的样式. 对 ass 字幕无效果, 将使用其本身样式.
+        video_codec: 视频编码器, 例如 'libx264', 'h264_nvenc' 等. 默认使用 HEVC (h.265) 编码.
+        video_params: 其它传递给 ffmpeg 的编码参数, 例如 {'crf': '23', 'preset': 'medium'}. 默认为 None, 会根据原视频选择适当参数.
+    """
+    logger.info(f"{subtitle} + {video} -> {output}")
+
+    if subtitle.suffix == ".ass":
+        filter_arg = f"subtitles='{str(subtitle)}'"
+    else:
+        filter_arg = f"subtitles='{str(subtitle)}':force_style={srt_style.replace(', ', ',')}"
+
+    command = ["ffmpeg", "-i", str(video), "-vf", filter_arg, "-c:v", video_codec]
+
+    # 选择合适的编码参数
+    if video_params is None:
+        # 获取原视频信息以推断编码参数
+        video_info = await _get_video_info(video)
+        video_params = {}
+        # 已知原视频码率, 使用 ABR
+        if video_info.bit_rate is not None:
+            orig_codec = video_info.codec_name.lower() if video_info.codec_name else ""
+            is_orig_hevc = orig_codec in ["hevc", "h265"]
+            if video_codec == "libx265":
+                # 原视频是 HEVC 则保持相同码率, 否则 * 0.8
+                target_bitrate = video_info.bit_rate if is_orig_hevc else int(video_info.bit_rate * 0.8)
+            else:
+                # 非 HEVC 编码保持原码率
+                target_bitrate = video_info.bit_rate
+            video_params["b:v"] = str(target_bitrate)
+        else:  # 原始码率未知, 使用 CRF
+            video_params["preset"] = "medium"
+            if video_codec == "libx265":
+                video_params["crf"] = "28"  # HEVC 的 CRF 值通常比 H.264 高 6 左右
+            else:
+                video_params["crf"] = "23"  # H.264 的一般平衡值. 每增加 6, 码率大致减半
+
+    # 添加编码参数
+    for param, value in video_params.items():
+        command.extend([f"-{param}", str(value)])
+
+    command.extend(
+        [
+            "-c:a",
+            "copy",
+            "-y",
+            "-v",
+            "warning",
+            str(output),
+        ]
+    )
+
+    await _run_command(command, "add hard subtitle")
 
 
 async def convert_any(
@@ -285,15 +369,7 @@ async def convert_any(
     if input == output:
         return
     logger.info(f"{input} -> {output}")
-    command = [
-        "ffmpeg",
-        "-i",
-        str(input),
-        "-y",
-        "-v",
-        "warning",
-        str(output),
-    ]
+    command = ["ffmpeg", "-i", str(input), "-y", "-v", "warning", str(output)]
     await _run_command(command, "convert any")
 
 
@@ -384,3 +460,64 @@ async def _create_silence_wav(
         str(output_file),
     ]
     await _run_command(command, "create empty audio")
+
+
+async def _get_video_info(file: Path) -> VideoInfo:
+    """
+    获取视频文件的基本信息.
+    """
+    logger.debug(str(file))
+    command = [
+        "ffprobe",
+        "-v",
+        "error",
+        "-show_entries",
+        "format=bit_rate,duration:stream=width,height,bit_rate,codec_name",
+        "-select_streams",
+        "v:0",
+        "-of",
+        "json",
+        str(file),
+    ]
+    success, stdout, _ = await _run_command(command, "get video info", omit_error=True)
+
+    if not success:
+        return VideoInfo()
+
+    import json
+
+    info = json.loads(stdout.decode())
+    result = VideoInfo()
+
+    # 尝试从格式和流中获取比特率
+    if "format" in info and "bit_rate" in info["format"]:
+        try:
+            result.bit_rate = int(info["format"]["bit_rate"])
+        except (ValueError, TypeError):
+            pass
+
+    # 尝试获取视频时长
+    if "format" in info and "duration" in info["format"]:
+        try:
+            result.duration = float(info["format"]["duration"])
+        except (ValueError, TypeError):
+            pass
+
+    # 如果格式中没有有效比特率，尝试从视频流获取
+    if result.bit_rate is None and "streams" in info and len(info["streams"]) > 0:
+        if "bit_rate" in info["streams"][0]:
+            try:
+                result.bit_rate = int(info["streams"][0]["bit_rate"])
+            except (ValueError, TypeError):
+                pass
+
+    # 获取分辨率和编码格式
+    if "streams" in info and len(info["streams"]) > 0:
+        stream = info["streams"][0]
+        if "width" in stream and "height" in stream:
+            result.width = int(stream["width"])
+            result.height = int(stream["height"])
+        if "codec_name" in stream:
+            result.codec_name = stream["codec_name"]
+
+    return result

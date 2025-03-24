@@ -15,7 +15,7 @@ from httpx import Timeout
 from .args import USAGE, ASRArgument, GeneralArgument, SubtitleArgument, TranslateArgument, TTSArgument
 from .ass import ASS, Style
 from .executor import AsyncBackgroundExecutor
-from .ffmpeg import SubtitleTrack, add_audio_to_video, add_subs_to_video, convert_any
+from .ffmpeg import SubtitleTrack, add_audio_to_video, add_hard_sub, add_soft_subs, convert_any
 from .hf_argparser import HfArgumentParser
 from .log import get_llm_msg_logger, log_to_console, log_to_file, logger
 from .split import split_segments
@@ -236,25 +236,7 @@ def cli():
             if add_sub_input_video is None:
                 return
             # add subtitles to video
-            subs: list[SubtitleTrack] = []
-            if sub_args.add_asr_sub:
-                subs.append(SubtitleTrack(raw_sub, sub_args.asr_sub_title, sub_args.asr_sub_style))
-            if sub_args.add_trans_sub and general_args.translate:
-                subs.append(SubtitleTrack(translated_srt, sub_args.trans_sub_title, sub_args.trans_sub_style))
-            if sub_args.add_bilingual_sub and billing_srt:
-                subs.append(SubtitleTrack(billing_srt, sub_args.bilingual_sub_title, sub_args.bilingual_sub_style))
-            for sub in subs:
-                ass_p = sub.file.with_suffix(".ass")
-                await convert_any(sub.file, ass_p)
-                ass = ASS.from_file(ass_p)
-                ass.add_or_update_style(sub.style if sub.style else Style.get_default_kv_string())
-                ass.save(ass_p)
-                # clean srt
-                if not general_args.debug and sub.file not in general_args.subtitles:  # 避免删除输入文件
-                    logger.info(f"remove: {sub.file}")
-                    sub.file.unlink(missing_ok=True)
-                sub.file = ass_p
-            await add_subs_to_video(add_sub_input_video, subs, output_file.with_suffix(".sub.mkv"))
+            subs = await _add_subs(raw_sub, output_file, add_sub_input_video, translated_srt, billing_srt)
             if general_args.debug:
                 return
             # clean ass
@@ -269,6 +251,37 @@ def cli():
             logger.error(f"Translate & TTS {task_name} failed: {e}", exc_info=True)
             with lock:
                 failed_tasks.append(("translate & tts: " + task_name, str(e)))
+
+    async def _add_subs(
+        raw_sub: Path,
+        output_file: Path,
+        add_sub_input_video: Path,
+        translated_srt: Path,
+        billing_srt: Path | None,
+    ):
+        subs: list[SubtitleTrack] = []
+        if sub_args.soft and sub_args.add_asr_sub:
+            subs.append(SubtitleTrack(raw_sub, sub_args.asr_sub_title, sub_args.asr_sub_style))
+        if sub_args.soft and sub_args.add_trans_sub and general_args.translate:
+            subs.append(SubtitleTrack(translated_srt, sub_args.trans_sub_title, sub_args.trans_sub_style))
+        if (not sub_args.soft or sub_args.add_bilingual_sub) and billing_srt:
+            subs.append(SubtitleTrack(billing_srt, sub_args.bilingual_sub_title, sub_args.bilingual_sub_style))
+        for sub in subs:
+            ass_p = sub.file.with_suffix(".ass")
+            await convert_any(sub.file, ass_p)
+            ass = ASS.from_file(ass_p)
+            ass.add_or_update_style(sub.style if sub.style else Style.get_default_kv_string())
+            ass.save(ass_p)
+            # clean srt
+            if not general_args.debug and sub.file not in general_args.subtitles:  # 避免删除输入文件
+                logger.info(f"remove: {sub.file}")
+                sub.file.unlink(missing_ok=True)
+            sub.file = ass_p
+        if sub_args.soft:
+            await add_soft_subs(add_sub_input_video, subs, output_file.with_suffix(".sub.mkv"))
+        elif subs:
+            await add_hard_sub(add_sub_input_video, subs[0].file, output_file.with_suffix(".sub.mkv"))
+        return subs
 
     for i in range(max(len(general_args.videos), len(general_args.subtitles))):
         task_file = general_args.videos[i] if general_args.videos else general_args.subtitles[i]
