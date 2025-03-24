@@ -95,8 +95,8 @@ def cli():
     failed_tasks: list[tuple[str, str]] = []  # task_name, error
 
     # start processing
-    logger.info(f"process {len(general_args.videos)} videos: {general_args.videos}")
-    logger.info(f"process {len(general_args.subtitles)} subtitles: {general_args.subtitles}")
+    logger.info(f"process {len(general_args.videos)} videos: {list(map(str, general_args.videos))}")
+    logger.info(f"process {len(general_args.subtitles)} subtitles: {list(map(str, general_args.subtitles))}")
     logger.debug(f"general args: {general_args}")
     logger.debug(f"asr args: {asr_args}")
     logger.debug(f"translate args: {translate_args}")
@@ -133,7 +133,7 @@ def cli():
 
         ts = time.time()
         audio = whisperx.load_audio(str(video))
-        logger.info(f"[load] in {time.time() - ts:.2f}s: {task_name}")
+        logger.info(f"[load] in {time.time() - ts:.2f}s: <{task_name}>")
 
         ts = time.time()
         tr = processor.transcribe(
@@ -150,7 +150,7 @@ def cli():
                 t_result=tr,
                 audio=audio,
             )
-            logger.info(f"[align] in {time.time() - ts:.2f}s: {task_name}")
+            logger.info(f"[align] in {time.time() - ts:.2f}s: <{task_name}>")
 
         if asr_args.diarize:
             ts = time.time()
@@ -159,7 +159,7 @@ def cli():
                 t_result=tr,
                 hf_token=asr_args.hf_token,
             )
-            logger.info(f"[diarize] in {time.time() - ts:.2f}s: {task_name}")
+            logger.info(f"[diarize] in {time.time() - ts:.2f}s: <{task_name}>")
 
         r = tr["segments"]
         if asr_args.align:  # split_segments 必须词级时间戳
@@ -199,7 +199,7 @@ def cli():
                     try_html=2 if translate_args.use_html else 0,
                     batch_size=translate_args.batch_size,
                 )
-                logger.info(f"[translate] in {time.time() - ts:.2f}s: {task_name}")
+                logger.info(f"[translate] in {time.time() - ts:.2f}s: <{task_name}>")
                 zh_srt.save(translated_srt)
                 en_srt.concat_text(zh_srt).save(billing_srt)
             else:
@@ -225,7 +225,7 @@ def cli():
                     cache_dir=f".cache/{tmp_dir}",
                     debug=general_args.debug,
                 )
-                logger.info(f"[tts] in {time.time() - ts:.2f}s: {task_name}")
+                logger.info(f"[tts] in {time.time() - ts:.2f}s: <{task_name}>")
                 if raw_video and tts_args.add_track:
                     tts_video = output_file.with_suffix(".tts.mp4")
                     await add_audio_to_video(tts_audio, raw_video, tts_video, tts_args.track_title)
