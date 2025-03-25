@@ -3,7 +3,7 @@ import unittest
 from video_dubbing.ass import ASS, Color, Style
 
 
-class TestASS(unittest.TestCase):
+class TestStyleString(unittest.TestCase):
     def setUp(self):
         self.ass = ASS()
         # Add a default style to test updates
@@ -13,11 +13,17 @@ class TestASS(unittest.TestCase):
     def test_add_new_style(self):
         # Test adding a completely new style
         new_style = self.ass.add_or_update_style("Fontsize=25, Bold=1", name="NewStyle")
-
+        raw_style = self.ass.styles[0]
         self.assertEqual(len(self.ass.styles), 2)
+        self.assertIs(self.ass.styles[1], new_style)
         self.assertEqual(new_style.name, "NewStyle")
         self.assertEqual(new_style.fontsize, 25.0)
         self.assertEqual(new_style.bold, True)
+        # Verify the original style hasn't changed
+        self.assertIs(raw_style, self.default_style)
+        self.assertEqual(raw_style.name, "Default")
+        self.assertEqual(raw_style.fontsize, 20.0)
+        self.assertEqual(raw_style.bold, False)
 
     def test_update_existing_style(self):
         # Test updating an existing style

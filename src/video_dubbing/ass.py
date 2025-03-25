@@ -292,10 +292,10 @@ class ASS(object):
         # 查找是否已存在该名称的Style
         style = Style()
         exist = False
-        for style in self.styles:
-            if style.name == name:
+        for s in self.styles:
+            if s.name == name:
                 exist = True
-                style = style
+                style = s
                 break
 
         for key, value in pairs.items():
@@ -429,6 +429,17 @@ class ASS(object):
             for event in self.events:
                 f.write(event.dump_with_type(self.events_field_order) + "\n")
             f.write("\n")
+
+    def apply_style(self, style_name: str, placeholder: str = "<new-style>"):
+        """
+        在 ass 文本中插入控制符以应用指定样式.
+
+        Args:
+            style_name: 要使用的样式名称. 此函数不检查其是否存在.
+            placeholder: 在字幕文本中用于指代当前格式的占位符.
+        """
+        for e in self.events:
+            e.text = e.text.replace(placeholder, f"{{\\r{style_name}}}")
 
 
 @add_metaclass(_WithFieldMeta)
