@@ -38,9 +38,18 @@ async def run_tasks(
 
 def len_hybrid(text: str) -> int:
     """
-    计算文本长度, 适用于 CJK 字符为主, 但包含少量英文的文本. 纯英文直接计数空格更合适.
+    计算文本长度, 以单词为单位. 适用于 CJK 字符与英文混合的文本.
 
-    将连续的英文字母, 连字符, 下划线, 数字, (非标点)符号计为一个单词.
+    单词定义: 连续出现的任意多个 `LETTER` 中的字符视为一个单词; `SPACE` 中的字符视为单词分隔符; 其它字符均视为一个单词.
+
+    通俗来说:
+    - 连续的英文字母/连字符/下划线/数字/(非标点)符号是一个单词
+    - 单个 CJK 字符等是一个单词
+    - 空格/标点符号是单词分隔符
+
+    例如:
+    >>> assert len_hybrid("Hello 世界 World") == 4  # Hello, 世, 界, World
+    >>> assert len_hybrid("deepseek-r1") == 1
     """
     # unicode category: https://en.wikipedia.org/wiki/Unicode_character_property
     # https://www.compart.com/en/unicode/category
@@ -67,10 +76,25 @@ def len_hybrid(text: str) -> int:
 
 def sub_hybrid(s: str, start: int, stop: Optional[int]) -> str:
     """
-    用于中英文的混合字符串切片, 可避免截断单词. 不支持负索引.
+    用于中英文的混合字符串切片, 可避免截断单词. 单词定义见 `len_hybrid`.
 
-    具体而言, 会将起始索引推后到不完整单词的结束, 将终止索引提前到完整单词的开始.
+    当索引位于单词中间时, 会将起始索引推后到下一个单词的开始, 将终止索引推后到当前单词的结束.
     """
+    # 负起始索引
+    if start < 0:
+        start += len(s)
+    # 越界
+    if start >= len(s):
+        return ""
+    if stop is not None:
+        if stop < 0:  # 负终止索引
+            stop += len(s)
+        if stop <= start:  # 终止索引在起始索引之前
+            return ""
+        if stop >= len(s):  # 终止索引超出范围
+            stop = None
+
+    # 推后起始索引到下一个单词开始
     in_word = False
     if start > 0:
         in_word = unicodedata.category(s[start - 1]) in LETTER
@@ -90,7 +114,8 @@ def sub_hybrid(s: str, start: int, stop: Optional[int]) -> str:
         return s[start:]
     if stop <= start:
         return ""
-    modified = False  # 是否修改了终止索引, 若修改了需要考虑回退
+    # 提前终止索引到上一个单词结束
+    modified = False  # 记录是否修改了终止索引
     for c in s[stop - 1 :]:
         # stop-1 位置的字符将是子串的最后一个字符
         cat = unicodedata.category(c)
