@@ -4,7 +4,7 @@ from typing import Callable, Iterable, Optional, overload
 
 from .log import logger
 from .types import Segment
-from .utils import len_hybrid
+from .utils import len_hybrid, sub_hybrid
 
 
 logger = logger.getChild("srt")
@@ -47,7 +47,7 @@ class SRT:
     ASR 流程中的任务以字幕作为输入/输出. 对于不同任务, 字幕具有不同的性质.
     - 最理想的字幕: 各行长度适中, 包含一个/几个整句(以标点符号划分), 时间戳准确.
     - VAD + Whisper 识别结果: 时间戳较准确, 长度部分可控, 不保证句子完整, 不保证标点符号(英语转译可保证).
-    - 翻译任务期待: 各行需为整句, 否则容易导致行间干扰, 长度, 标点无要求.
+    - 翻译任务期待: 各行需为整句, 否则容易导致行间干扰. 对单行长度, 是否有标点无要求.
     - TTS 任务期待: 要求最高. 由于只能通过起止时间戳进行对齐, 因此要求每行为一个完整句子, 且长度适中.
         行长度过长, 则后部分会出现音画不同步; 句子不完整, 会导致听感割裂.
     """
@@ -121,7 +121,9 @@ class SRT:
 
     def with_texts(self, texts: list[str]) -> "SRT":
         """
-        返回一个新的 SRT, 其文本内容由 texts 提供.
+        返回一个新的 SRT, 其时间戳不变, 文本替换为 texts.
+
+        要求 texts 长度与原字幕行数相同.
         """
         if len(texts) != len(self):
             logger.warning(f"length mismatch: texts({len(texts)}) != raw({len(self)})")
@@ -161,49 +163,6 @@ class SRT:
             ]
         )
 
-    def merge(self, other: "SRT") -> "SRT":
-        """
-        将两个字幕合并, 按起始时间排序各行并重新编号.
-        """
-        entries = sorted(self.entries + other.entries, key=lambda x: x.start)
-        for i, entry in enumerate(entries, 1):
-            entry.index = i
-        return SRT(entries)
-
-    def sort(self) -> "SRT":
-        """
-        返回一个新的 SRT, 其字幕行按起始时间排序并重新编号.
-        """
-        entries = sorted(self.entries, key=lambda x: x.start)
-        for i, entry in enumerate(entries, 1):
-            entry.index = i
-        return SRT(entries)
-
-    def offset(self, seconds: float) -> "SRT":
-        """
-        就地偏移此字幕的时间戳. 不进行负时间戳检查.
-        """
-        for entry in self.entries:
-            entry.start += seconds
-            entry.end += seconds
-        return self
-
-    def concat(self, other: "SRT", interval: float = 0) -> "SRT":
-        """
-        返回一个新的字幕, 依次包含此字幕和另一个字幕的内容, 并调整索引和时间戳.
-
-        Args:
-            other: 待添加的字幕.
-            interval: 两字幕间的时间间隔.
-        """
-        s = other.copy().offset(self[-1].end + interval)
-        for entry in s.entries:
-            entry.index += len(self)
-        return SRT(self.entries + s.entries)
-
-    def __add__(self, other: "SRT") -> "SRT":
-        return self.concat(other)
-
     @overload
     def __getitem__(self, key: slice) -> list[SRTEntry]: ...
     @overload
@@ -237,17 +196,8 @@ class SRT:
                 start = i
         yield SRT(self[start:])
 
-    @property
-    def average_length(self) -> float:
-        return sum(len(entry) for entry in self.entries) / len(self)
-
-    @property
-    def min_length(self) -> int:
-        return min(len(entry) for entry in self.entries)
-
-    @property
-    def max_length(self) -> int:
-        return max(len(entry) for entry in self.entries)
+    def texts(self) -> Iterable[str]:
+        yield from (entry.text for entry in self.entries)
 
     def save(self, path: str | Path) -> "SRT":
         logger.info(f"{path}")
@@ -296,7 +246,6 @@ class SRT:
         self,
         max_length: int = 80,
         min_tail_length: int = 20,
-        sep: str = " ",
     ) -> "SRT":
         """
         返回一个新的 SRT, 其中文本过长的行被分割.
@@ -308,109 +257,63 @@ class SRT:
         Args:
             max_length: 分割后单行字幕的最大长度.
             min_tail_length: 分割后尾部的最小长度. 若分割后尾部长度小于此值, 则不分割.
-            sep: 分割文本时用于定界的分隔符. 对字母语言通常使用空格. 对于中文使用空串.
         """
-        logger.debug(f"max_length={max_length}, min_tail_length={min_tail_length}, sep='{sep}'")
+        min_tail_length = min(min_tail_length, max_length)
+        logger.debug(f"max_length={max_length}, min_tail_length={min_tail_length}")
         new_entries = []
         i = 1
         for entry in self:
-            entry_length = len(entry)
-            if entry_length <= max_length:
+            length = len(entry)
+            if length <= max_length:  # 跳过原本存在的短行, 避免进行合并
                 new_entries.append(SRTEntry(i, entry.start, entry.end, entry.text))
                 i += 1
                 continue
-            s = entry.text
+            text = entry.text
             start = entry.start
-            # 按长度比例计算每段的大概持续时间
-            duration = (max_length - 1) / entry_length * (entry.end - entry.start)
-            split_index = max_length
-            while split_index > 0:
+            # 按文本长度比例计算每段的持续时间
+            duration = int((max_length) / length * (entry.end - entry.start) * 100) / 100
+            while text:
                 # 寻找第 max_length 个字符后的第一个 sep 作为分割位置
-                split_index = s.find(sep, split_index)
+                sub_text = sub_hybrid(text, 0, max_length)
                 # 短尾部, 合并到上一段
-                if split_index == -1 and len(s) < min_tail_length:
-                    new_entries[-1].text += sep + s
+                if len(sub_text) < min_tail_length:
+                    new_entries[-1].text += text
                     new_entries[-1].end = entry.end
                     break
                 # 最后一段可能不足时长
                 end = min(start + duration, entry.end)
-                new_entries.append(SRTEntry(i, start, end, s[:split_index] if split_index > 0 else s))
+                new_entries.append(SRTEntry(i, start, end, sub_text))
                 i += 1
                 start = end
-                s = s[split_index + 1 :]
+                text = sub_hybrid(text, max_length, None)
+            new_entries[-1].end = entry.end
         logger.info(f"split {len(self)} entries to {len(new_entries)}")
         return SRT(new_entries)
 
-    def adjust_by_length(
-        self,
-        max_length: int = 80,
-        min_tail_length: int = 40,
-        merge_sep: str = " ",
-        split_sep: str = " ",
-    ) -> "SRT":
+    def split_with_ref(self, ref: "SRT") -> "SRT":
         """
-        合并短行, 分割长行. 此方法尽力满足约束. 返回一个新的 SRT 对象.
+        根据参考字幕的时间轴切分此字幕. 文本按时间比例分割.
 
-        在调整前通常要先进行时间戳校正, 使得相邻字幕的时间不重叠.
+        要求参考字幕的时间轴是此字幕的分割.
 
-        Args:
-            min_tail_length: 最短长度约束. 分割时保证不产生短于此长度的字幕, 但不保证原有短字幕一定被合并.
-            max_length: 最长长度约束. 由于受短尾部约束, 实际最长不超过 max_length + min_tail_length. 另外, 限制字符长度时会上取到完整单词.
-            merge_sep: 合并文本时使用的分隔符.
-            split_sep: 分割文本时用于定界的分隔符. 对字母语言通常使用空格. 对于中文使用空串.
+        例如, 可以首先按文本长度切分中文字幕, 然后参考中文字幕切分英文字幕, 这样后续可顺利合并两个字幕.
         """
-        if self.max_length <= max_length:
-            return self.merge_by_length(0.5, max_length, merge_sep)
-        return self.split_by_length(max_length, min_tail_length, split_sep).merge_by_length(0.5, max_length, merge_sep)
-
-    def split_sentences(
-        self,
-        puncs: str = "。！？.!?",
-        interval: float = 0.5,
-        len_func: Callable[[str], int] = len_hybrid,
-    ) -> "SRT":
-        """
-        分割字幕中较长的行, 使得最终每行恰好包含一句. 返回一个新的 SRT 对象.
-
-        此方法使用标点符号界定句子, 按文本长度计算分割后的时间戳, 可能造成时间戳偏差.
-
-        Args:
-            puncs: 用于界定句子的标点.
-            interval: 若相邻字幕的时间间隔小于此, 将进行合并. 单位为秒.
-            len_func: 用于计算文本长度的函数.
-        """
-        logger.debug(f"puncs='{puncs}', interval={interval}")
-        entries = []
-        i = 1
+        logger.debug(f"len(ref)={len(ref)}")
+        new_entries = []
+        ref_entries = iter(ref)
+        ref_entry = next(ref_entries)
         for entry in self:
-            s = entry.text
-            start = entry.start
-            end = entry.end
-            while len_func(s) > 0:
-                split_index = -1
-                for punc in puncs:
-                    split_index = s.find(punc)
-                    if split_index != -1:
-                        break
-                if split_index == -1:
-                    entries.append(SRTEntry(i, start, end, s))
-                    i += 1
-                    break
-                split_index += 1
-                if len_func(s[:split_index]) > 0:
-                    entries.append(
-                        SRTEntry(
-                            i,
-                            start,
-                            start + (end - start) * len_func(s[:split_index]) / len_func(s),
-                            s[:split_index],
-                        )
-                    )
-                    i += 1
-                start += (end - start) * len_func(s[:split_index]) / len_func(s)
-                s = s[split_index:]
-        logger.info(f"{len(self)} -> {len(entries)}")
-        return SRT(entries)
+            parts = []
+            text = entry.text
+            while ref_entry.end < entry.end + 0.5 and ref_entry.start > entry.start - 0.5:  # 浮点误差
+                parts.append((ref_entry.start, ref_entry.end))
+                ref_entry = next(ref_entries)
+            for start, end in parts:
+                length = int((end - start) / (entry.end - entry.start) * len(text))
+                new_entries.append(SRTEntry(len(new_entries) + 1, start, end, sub_hybrid(text, 0, length)))
+                text = sub_hybrid(text, length, None)
+        logger.info(f"split {len(self)} entries to {len(new_entries)}")
+        return SRT(new_entries)
 
     def merge_sentences(
         self,
@@ -487,6 +390,3 @@ class SRT:
             else:
                 self[i - 1].end = self[i].start
         return self
-
-    def texts(self) -> Iterable[str]:
-        yield from (entry.text for entry in self.entries)
