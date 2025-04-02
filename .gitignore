@@ -13,5 +13,6 @@ wheels/
 input
 output
 logs
-*.local.*
-config.json
+
+*.json
+*.log
