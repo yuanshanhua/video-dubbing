@@ -255,7 +255,7 @@ class SRT:
         分割后会产生短的尾部, 可使用 min_tail_length 参数控制.
 
         Args:
-            max_length: 分割后单行字幕的最大长度.
+            max_length: 分割后单行字幕的最大长度, 以字符计.
             min_tail_length: 分割后尾部的最小长度. 若分割后尾部长度小于此值, 则不分割.
         """
         min_tail_length = min(min_tail_length, max_length)

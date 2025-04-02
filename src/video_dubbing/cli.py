@@ -223,8 +223,11 @@ class VideoDubbing:
             batch_size=self.translate_args.batch_size,
         )
         logger.info(f"[translate] in {time.time() - ts:.2f}s: <{task_name}>")
-        zh_srt.save(translated_srt)
 
+        # 调整字幕长度以适合显示
+        zh_srt = zh_srt.split_by_length(25, 10).save(translated_srt)  # 适用于中文, 英文约*2 TODO 允许配置
+        en_srt = en_srt.split_with_ref(zh_srt)
+        # 组装双语字幕
         if self.sub_args.trans_first:
             zh_srt.concat_text(en_srt, "\n<newstyle>").save(billing_srt)
         else:
@@ -317,7 +320,6 @@ class VideoDubbing:
             first_style, second_style = (
                 (trans_style, raw_style) if self.sub_args.trans_first else (raw_style, trans_style)
             )
-
             ass.add_or_update_style(first_style)
             ass.add_or_update_style(second_style, "second")
             ass.apply_style("second", "<newstyle>").save(ass_p)
@@ -327,7 +329,6 @@ class VideoDubbing:
             await add_soft_subs(video, subs, output_file.with_suffix(".sub.mkv"))
         elif subs:
             await add_hard_sub(video, subs[0].file, output_file.with_suffix(".sub.mkv"))
-
         return subs
 
     def _cleanup_files(self, subs: list[SubtitleTrack], raw_video: Path | None, add_sub_input_video: Path) -> None:
