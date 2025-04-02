@@ -1,7 +1,7 @@
 import asyncio
 import re
 from logging import Logger
-from typing import Callable, Optional
+from typing import Callable
 
 from httpx import Timeout
 
@@ -102,7 +102,7 @@ class LLMTranslator:
         try_html: int,
         src_len_func: Callable[[str], int] = len_hybrid,
         tar_len_func: Callable[[str], int] = len_hybrid,
-        sub_func: Callable[[str, int, Optional[int]], str] = sub_hybrid,
+        sub_func: Callable[[str, int, int | None], str] = sub_hybrid,
     ) -> list[str]:
         """
         请求 LLM 翻译多行文本. 此方法保证结果行数与输入一致且含义连贯, 但不保证各行一一对应.

@@ -1,7 +1,6 @@
 import asyncio
 import time
 from logging import Logger
-from typing import Optional
 
 from aiolimiter import AsyncLimiter
 from httpx import Timeout
@@ -41,9 +40,9 @@ class LLMClient:
         self,
         model: str,
         system_prompt: str,
-        user_prompt: Optional[str] = None,
+        user_prompt: str | None = None,
         temperature: float = 0.0,
-    ) -> Optional[str]:
+    ) -> str | None:
         messages: list[ChatCompletionMessageParam] = [{"role": "system", "content": system_prompt}]
         if user_prompt:
             messages.append({"role": "user", "content": user_prompt})

@@ -1,7 +1,7 @@
 import asyncio
 import unicodedata
 from pathlib import Path
-from typing import Any, Coroutine, Optional, TypeVar
+from typing import Any, Coroutine, TypeVar
 
 
 # 空格和标点符号(不包括连字符 Pc 和 Pd)
@@ -74,7 +74,7 @@ def len_hybrid(text: str) -> int:
     return len(text) - skip
 
 
-def sub_hybrid(s: str, start: int, stop: Optional[int]) -> str:
+def sub_hybrid(s: str, start: int, stop: int | None) -> str:
     """
     用于中英文的混合字符串切片, 可避免截断单词. 单词定义见 `len_hybrid`.
 

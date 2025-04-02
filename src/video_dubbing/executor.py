@@ -3,7 +3,7 @@ import concurrent.futures
 import threading
 import time
 from concurrent.futures import Future
-from typing import Coroutine, Optional, Set
+from typing import Coroutine, Set
 
 
 class AsyncBackgroundExecutor:
@@ -37,7 +37,7 @@ class AsyncBackgroundExecutor:
         with self._lock:
             self._pending_futures.discard(future)
 
-    def wait_all(self, timeout: Optional[float] = None):
+    def wait_all(self, timeout: float | None = None):
         """等待所有未完成任务执行完毕"""
         with self._lock:
             current_futures = list(self._pending_futures)

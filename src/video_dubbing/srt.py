@@ -1,6 +1,6 @@
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Callable, Iterable, Optional, overload
+from typing import Callable, Iterable, overload
 
 from .log import logger
 from .types import Segment
@@ -108,7 +108,7 @@ class SRT:
     def __init__(self, entries: list[SRTEntry]):
         self.entries = entries
 
-    def get_index(self, index: int) -> Optional[SRTEntry]:
+    def get_index(self, index: int) -> SRTEntry | None:
         """
         获取索引为 index 的字幕行. 若不存在则返回 None.
         """

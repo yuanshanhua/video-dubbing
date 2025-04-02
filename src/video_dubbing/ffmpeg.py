@@ -3,7 +3,7 @@ import math
 import os
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Iterable, Optional
+from typing import Iterable
 
 from .log import logger
 
@@ -124,7 +124,7 @@ async def concat_tts_segs(
 async def get_audio_snippet(
     input_file: str,
     start: float,
-    duration: Optional[float],
+    duration: float | None,
     output_file: str,
 ):
     """
