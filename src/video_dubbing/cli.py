@@ -201,7 +201,10 @@ def cli():
                 )
                 logger.info(f"[translate] in {time.time() - ts:.2f}s: <{task_name}>")
                 zh_srt.save(translated_srt)
-                en_srt.concat_text(zh_srt).save(billing_srt)
+                if sub_args.trans_first:
+                    zh_srt.concat_text(en_srt, "\n<newstyle>").save(billing_srt)
+                else:
+                    en_srt.concat_text(zh_srt, "\n<newstyle>").save(billing_srt)
             else:
                 translated_srt = raw_sub
                 billing_srt = None
@@ -255,17 +258,16 @@ def cli():
     async def _add_subs(
         raw_sub: Path,
         output_file: Path,
-        add_sub_input_video: Path,
+        video: Path,
         translated_srt: Path,
         billing_srt: Path | None,
     ):
         subs: list[SubtitleTrack] = []
+        # 添加原/译文字幕
         if sub_args.soft and sub_args.add_asr_sub:
             subs.append(SubtitleTrack(raw_sub, sub_args.asr_sub_title, sub_args.asr_sub_style))
         if sub_args.soft and sub_args.add_trans_sub and general_args.translate:
             subs.append(SubtitleTrack(translated_srt, sub_args.trans_sub_title, sub_args.trans_sub_style))
-        if (not sub_args.soft or sub_args.add_bilingual_sub) and billing_srt:
-            subs.append(SubtitleTrack(billing_srt, sub_args.bilingual_sub_title, sub_args.bilingual_sub_style))
         for sub in subs:
             ass_p = sub.file.with_suffix(".ass")
             await convert_any(sub.file, ass_p)
@@ -277,10 +279,23 @@ def cli():
                 logger.info(f"remove: {sub.file}")
                 sub.file.unlink(missing_ok=True)
             sub.file = ass_p
+        # 应用双语字幕样式
+        if (not sub_args.soft or sub_args.add_bilingual_sub) and billing_srt:
+            ass_p = billing_srt.with_suffix(".ass")
+            await convert_any(billing_srt, ass_p)
+            billing_srt.unlink(missing_ok=True)
+            ass = ASS.from_file(ass_p)
+            raw_style = sub_args.asr_sub_style or Style.get_default_kv_string()
+            trans_style = sub_args.trans_sub_style or Style.get_default_kv_string()
+            firststyle, second_style = (trans_style, raw_style) if sub_args.trans_first else (raw_style, trans_style)
+            ass.add_or_update_style(firststyle)
+            ass.add_or_update_style(second_style, "second")
+            ass.apply_style("second", "<newstyle>").save(ass_p)
+            subs.append(SubtitleTrack(ass_p, sub_args.bilingual_sub_title))
         if sub_args.soft:
-            await add_soft_subs(add_sub_input_video, subs, output_file.with_suffix(".sub.mkv"))
+            await add_soft_subs(video, subs, output_file.with_suffix(".sub.mkv"))
         elif subs:
-            await add_hard_sub(add_sub_input_video, subs[0].file, output_file.with_suffix(".sub.mkv"))
+            await add_hard_sub(video, subs[0].file, output_file.with_suffix(".sub.mkv"))
         return subs
 
     for i in range(max(len(general_args.videos), len(general_args.subtitles))):

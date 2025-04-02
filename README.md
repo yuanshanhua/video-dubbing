@@ -194,7 +194,7 @@ Subtitle:
   --asr_sub_title ASR_SUB_TITLE, --asr-sub-title ASR_SUB_TITLE
                         语音识别字幕标题 (default: None)
   --asr_sub_style ASR_SUB_STYLE, --asr-sub-style ASR_SUB_STYLE
-                        语音识别字幕样式. 参考 https://github.com/yuanshanhua/video-dubbing/blob/main/docs/subtitle_style_zh.md (default: None)
+                        语音识别字幕样式. 详情参考 https://github.com/yuanshanhua/video-dubbing/blob/main/docs/subtitle_style_zh.md (default: None)
   --add_trans_sub [ADD_TRANS_SUB], --add-trans-sub [ADD_TRANS_SUB]
                         将译文字幕添加到视频 (default: True)
   --trans_sub_title TRANS_SUB_TITLE, --trans-sub-title TRANS_SUB_TITLE
@@ -202,11 +202,11 @@ Subtitle:
   --trans_sub_style TRANS_SUB_STYLE, --trans-sub-style TRANS_SUB_STYLE
                         译文字幕样式 (default: None)
   --add_bilingual_sub [ADD_BILINGUAL_SUB], --add-bilingual-sub [ADD_BILINGUAL_SUB]
-                        将双语字幕添加到视频 (default: True)
+                        将双语字幕添加到视频. 双语字幕中两种语言将分别应用各自的样式 (default: True)
+  --trans_first [TRANS_FIRST], --trans-first [TRANS_FIRST]
+                        双语字幕中将译文置于原文之前 (default: True)
   --bilingual_sub_title BILINGUAL_SUB_TITLE, --bilingual-sub-title BILINGUAL_SUB_TITLE
                         双语字幕标题 (default: None)
-  --bilingual_sub_style BILINGUAL_SUB_STYLE, --bilingual-sub-style BILINGUAL_SUB_STYLE
-                        双语字幕样式 (default: None)
 ```
 
 ## 🙏 致谢

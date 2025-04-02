@@ -440,6 +440,7 @@ class ASS(object):
         """
         for e in self.events:
             e.text = e.text.replace(placeholder, f"{{\\r{style_name}}}")
+        return self
 
 
 @add_metaclass(_WithFieldMeta)

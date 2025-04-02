@@ -77,9 +77,11 @@ class SubtitleArgument:
     add_trans_sub: bool = field(metadata={"help": "将译文字幕添加到视频"}, default=True)
     trans_sub_title: str | None = field(metadata={"help": "译文字幕标题"}, default=None)
     trans_sub_style: str | None = field(metadata={"help": "译文字幕样式"}, default=None)
-    add_bilingual_sub: bool = field(metadata={"help": "将双语字幕添加到视频"}, default=True)
+    add_bilingual_sub: bool = field(
+        metadata={"help": "将双语字幕添加到视频. 双语字幕中两种语言将分别应用各自的样式"}, default=True
+    )
+    trans_first: bool = field(metadata={"help": "双语字幕中将译文置于原文之前"}, default=True)
     bilingual_sub_title: str | None = field(metadata={"help": "双语字幕标题"}, default=None)
-    bilingual_sub_style: str | None = field(metadata={"help": "双语字幕样式"}, default=None)
 
     def __post_init__(self):
         pass

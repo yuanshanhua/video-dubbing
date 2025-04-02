@@ -184,23 +184,23 @@ TTS:
 Subtitle:
   --soft [SOFT]         Add soft/hard subtitles to video. If set to hard, only bilingual subtitle and its style will be applied (default: True)
   --add_asr_sub [ADD_ASR_SUB], --add-asr-sub [ADD_ASR_SUB]
-                        Add speech recognition subtitles to video (default: True)
+                        Add speech recognition subtitle to video (default: True)
   --asr_sub_title ASR_SUB_TITLE, --asr-sub-title ASR_SUB_TITLE
                         Speech recognition subtitle title (default: None)
   --asr_sub_style ASR_SUB_STYLE, --asr-sub-style ASR_SUB_STYLE
                         Speech recognition subtitle style. See: https://github.com/yuanshanhua/video-dubbing/blob/main/docs/subtitle_style_en.md (default: None)
   --add_trans_sub [ADD_TRANS_SUB], --add-trans-sub [ADD_TRANS_SUB]
-                        Add translated subtitles to video (default: True)
+                        Add translated subtitle to video (default: True)
   --trans_sub_title TRANS_SUB_TITLE, --trans-sub-title TRANS_SUB_TITLE
                         Translated subtitle title (default: None)
   --trans_sub_style TRANS_SUB_STYLE, --trans-sub-style TRANS_SUB_STYLE
                         Translated subtitle style (default: None)
   --add_bilingual_sub [ADD_BILINGUAL_SUB], --add-bilingual-sub [ADD_BILINGUAL_SUB]
-                        Add bilingual subtitles to video (default: True)
+                        Add bilingual subtitle to video. Raw/translated text in bilingual subtitle will apply style respectively (default: True)
+  --trans_first [TRANS_FIRST], --trans-first [TRANS_FIRST]
+                        Put translations before raw text in bilingual subtitle (default: True)
   --bilingual_sub_title BILINGUAL_SUB_TITLE, --bilingual-sub-title BILINGUAL_SUB_TITLE
                         Bilingual subtitle title (default: None)
-  --bilingual_sub_style BILINGUAL_SUB_STYLE, --bilingual-sub-style BILINGUAL_SUB_STYLE
-                        Bilingual subtitle style (default: None)
 ```
 
 ## 🙏 Acknowledgements
