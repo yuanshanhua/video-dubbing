@@ -292,7 +292,7 @@ class SRT:
 
     def split_with_ref(self, ref: "SRT") -> "SRT":
         """
-        根据参考字幕的时间轴切分此字幕. 文本按时间比例分割.
+        根据参考字幕的时间轴切分此字幕. 文本按时间比例分割. todo add test
 
         要求参考字幕的时间轴是此字幕的分割.
 
@@ -301,17 +301,20 @@ class SRT:
         logger.debug(f"len(ref)={len(ref)}")
         new_entries = []
         ref_entries = iter(ref)
-        ref_entry = next(ref_entries)
+        ref_entry = next(ref_entries, None)
         for entry in self:
             parts = []
             text = entry.text
-            while ref_entry.end < entry.end + 0.5 and ref_entry.start > entry.start - 0.5:  # 浮点误差
+            length = len(entry)
+            while ref_entry is not None and ref_entry.end < entry.end + 0.5 and ref_entry.start > entry.start - 0.5:
                 parts.append((ref_entry.start, ref_entry.end))
-                ref_entry = next(ref_entries)
+                ref_entry = next(ref_entries, None)
             for start, end in parts:
-                length = int((end - start) / (entry.end - entry.start) * len(text))
-                new_entries.append(SRTEntry(len(new_entries) + 1, start, end, sub_hybrid(text, 0, length)))
-                text = sub_hybrid(text, length, None)
+                l = int((end - start) / (entry.end - entry.start) * length)
+                new_entries.append(SRTEntry(len(new_entries) + 1, start, end, sub_hybrid(text, 0, l)))
+                text = sub_hybrid(text, l, None)
+            if text and new_entries:
+                new_entries[-1].text += text
         logger.info(f"split {len(self)} entries to {len(new_entries)}")
         return SRT(new_entries)
 
