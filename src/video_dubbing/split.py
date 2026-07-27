@@ -40,13 +40,13 @@ def _split_by_f(segments: list[Segment], sep: str, splitter: F) -> list[Segment]
         assert "words" in seg
         for start, end in splitter(seg):
             print(f"split: {start}, {end}")
-            s = {
-                "text": sep.join(word["word"] for word in seg["words"][start : end + 1]).strip(),
-                "start": seg["words"][start]["start"],
-                "end": seg["words"][end]["end"],
-                "speaker": seg["words"][start]["speaker"],
-                "words": seg["words"][start : end + 1],
-            }
+            s = Segment(
+                text=sep.join(word["word"] for word in seg["words"][start : end + 1]).strip(),
+                start=seg["words"][start]["start"],
+                end=seg["words"][end]["end"],
+                speaker=seg["words"][start]["speaker"],
+                words=seg["words"][start : end + 1],
+            )
             if s["text"]:
                 tmp.append(s)
     return tmp
