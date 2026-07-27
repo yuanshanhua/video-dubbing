@@ -1,16 +1,12 @@
-from typing import Dict, Optional, Union
-
 import numpy as np
 import whisperx
-from whisperx.types import AlignedTranscriptionResult, TranscriptionResult
-
 from transformers.utils import is_torch_npu_available
+from whisperx.types import AlignedTranscriptionResult, TranscriptionResult
 
 from .types import DiarizationResult
 
-
 if is_torch_npu_available():
-    import torch_npu.contrib.transfer_to_npu  # type: ignore # noqa: F401
+    import torch_npu.contrib.transfer_to_npu  # noqa: F401
 
     from .wrapper import FasterWhisperPipeline, load_model
 else:
@@ -21,8 +17,8 @@ class ASRProcessor:
     def __init__(self, device: str, model_dir: str | None):
         self.device = device
         self.model_dir = model_dir
-        self.transcribe_model: Optional[FasterWhisperPipeline] = None
-        self.align_models: Dict[str, tuple] = {}
+        self.transcribe_model: FasterWhisperPipeline | None = None
+        self.align_models: dict[str, tuple] = {}
         self.diarize_model = None
 
     def _load_transcribe_model(self, whisper_model: str, compute_type: str = "int8") -> FasterWhisperPipeline:
@@ -60,7 +56,7 @@ class ASRProcessor:
     def transcribe(
         self,
         *,
-        audio: Union[str, np.ndarray],
+        audio: str | np.ndarray,
         whisper_model: str,
         batch_size: int = 8,
         compute_type: str = "int8",
@@ -72,19 +68,18 @@ class ASRProcessor:
             audio = whisperx.load_audio(audio)
         # 1. Transcribe with original whisper (batched)
         model = self._load_transcribe_model(whisper_model, compute_type)
-        result = model.transcribe(
+        return model.transcribe(
             audio,
             batch_size=batch_size,
             chunk_size=10,  # chunk_size 可用于控制 VAD 句长, 单位为秒. 由于 whisper 特性, 最大不超过 30.
             verbose=True,
         )
-        return result
 
     def align(
         self,
         *,
         t_result: TranscriptionResult,
-        audio: Union[str, np.ndarray],
+        audio: str | np.ndarray,
     ) -> AlignedTranscriptionResult:
         """
         产生词汇级时间戳. 支持的语言及对应使用的具体模型参见 whisperx/alignment.py
@@ -97,7 +92,7 @@ class ASRProcessor:
             AlignedTranscriptionResult: 对齐后的结果.
         """
         model_a, metadata = self._load_align_model(t_result["language"])
-        result = whisperx.align(
+        return whisperx.align(
             t_result["segments"],
             model_a,
             metadata,
@@ -106,13 +101,12 @@ class ASRProcessor:
             return_char_alignments=False,
             print_progress=True,
         )
-        return result
 
     def diarize(
         self,
         *,
-        audio: Union[str, np.ndarray],
-        t_result: Union[AlignedTranscriptionResult, TranscriptionResult],
+        audio: str | np.ndarray,
+        t_result: AlignedTranscriptionResult | TranscriptionResult,
         hf_token: str,
     ) -> DiarizationResult:
         """
@@ -134,4 +128,4 @@ class ASRProcessor:
         result = whisperx.assign_word_speakers(diarize_segments, t_result)
         print(diarize_segments)
 
-        return result  # type: ignore
+        return result

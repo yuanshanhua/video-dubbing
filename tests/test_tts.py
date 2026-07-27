@@ -3,7 +3,6 @@ import unittest
 from video_dubbing.srt import SRT, SRTEntry
 from video_dubbing.tts import TTSLine, TTSProcessor, find_best_matches
 
-
 lines = [
     "而没有对 off.py 进行更改。",
     "所以在这一点上，你知道，这非常成问题，对吧？因为，你知道，银行 PPI 现在与 TechCash 相关联。 但我们实际上不再有用户的适当应用程序了。",
@@ -511,7 +510,7 @@ class TestTTS(unittest.TestCase):
         results = find_best_matches(lines, words)
         print(f"匹配结果: {results}")
         ends = [results[i] for i in range(1, len(lines))] + [None]
-        for i, (line, start, end) in enumerate(zip(lines, results, ends)):
+        for i, (line, start, end) in enumerate(zip(lines, results, ends, strict=False)):
             print(f"{i}: {line} -> {''.join(words[start:end])}")
 
     def test_adjust_time(self):

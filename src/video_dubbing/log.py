@@ -3,7 +3,6 @@ import logging
 import os
 import sys
 
-
 logger = logging.getLogger("dub")
 logger.propagate = False
 logger.setLevel(logging.DEBUG)

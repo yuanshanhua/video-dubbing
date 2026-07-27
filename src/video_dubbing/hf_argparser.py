@@ -18,25 +18,20 @@ import os
 import sys
 import types
 from argparse import ArgumentDefaultsHelpFormatter, ArgumentParser, ArgumentTypeError
+from collections.abc import Callable, Iterable
 from enum import Enum
 from inspect import isclass
 from pathlib import Path
 from typing import (
     Any,
-    Callable,
-    Dict,
-    Iterable,
-    List,
     Literal,
     NewType,
     Optional,
-    Tuple,
     Union,
     get_type_hints,
 )
 
 import yaml
-
 
 DataClass = NewType("DataClass", Any)
 DataClassType = NewType("DataClassType", Any)
@@ -48,12 +43,11 @@ def string_to_bool(v):
         return v
     if v.lower() in ("yes", "true", "t", "y", "1"):
         return True
-    elif v.lower() in ("no", "false", "f", "n", "0"):
+    if v.lower() in ("no", "false", "f", "n", "0"):
         return False
-    else:
-        raise ArgumentTypeError(
-            f"Truthy value expected: got {v} but expected one of yes/no, true/false, t/f, y/n, 1/0 (case insensitive)."
-        )
+    raise ArgumentTypeError(
+        f"Truthy value expected: got {v} but expected one of yes/no, true/false, t/f, y/n, 1/0 (case insensitive)."
+    )
 
 
 def make_choice_type_function(choices: list) -> Callable[[str], Any]:
@@ -73,11 +67,11 @@ def make_choice_type_function(choices: list) -> Callable[[str], Any]:
 
 def HfArg(
     *,
-    aliases: Union[str, List[str]] = None,
-    help: str = None,
+    aliases: str | list[str] | None = None,
+    help: str | None = None,
     default: Any = dataclasses.MISSING,
     default_factory: Callable[[], Any] = dataclasses.MISSING,
-    metadata: dict = None,
+    metadata: dict | None = None,
     **kwargs,
 ) -> dataclasses.Field:
     """Argument helper enabling a concise syntax to create dataclass fields for parsing with `HfArgumentParser`.
@@ -86,7 +80,9 @@ def HfArg(
     ```
     @dataclass
     class Args:
-        regular_arg: str = dataclasses.field(default="Huggingface", metadata={"aliases": ["--example", "-e"], "help": "This syntax could be better!"})
+        regular_arg: str = dataclasses.field(
+            default="Huggingface", metadata={"aliases": ["--example", "-e"], "help": "This syntax could be better!"}
+        )
         hf_arg: str = HfArg(default="Huggingface", aliases=["--example", "-e"], help="What a nice syntax!")
     ```
 
@@ -129,7 +125,7 @@ class HfArgumentParser(ArgumentParser):
 
     dataclass_types: Iterable[DataClassType]
 
-    def __init__(self, dataclass_types: Union[DataClassType, Iterable[DataClassType]], **kwargs):
+    def __init__(self, dataclass_types: DataClassType | Iterable[DataClassType], **kwargs):
         """
         Args:
             dataclass_types:
@@ -254,13 +250,10 @@ class HfArgumentParser(ArgumentParser):
         # )
 
     def _add_dataclass_arguments(self, dtype: DataClassType):
-        if hasattr(dtype, "_argument_group_name"):
-            parser = self.add_argument_group(dtype._argument_group_name)
-        else:
-            parser = self
+        parser = self.add_argument_group(dtype._argument_group_name) if hasattr(dtype, "_argument_group_name") else self
 
         try:
-            type_hints: Dict[str, type] = get_type_hints(dtype)
+            type_hints: dict[str, type] = get_type_hints(dtype)
         except NameError:
             raise RuntimeError(
                 f"Type resolution failed for {dtype}. Try declaring the class in global scope or "
@@ -297,7 +290,7 @@ class HfArgumentParser(ArgumentParser):
         look_for_args_file=True,
         args_filename=None,
         args_file_flag=None,
-    ) -> Tuple[DataClass, ...]:
+    ) -> tuple[DataClass, ...]:
         """
         Parse command-line args into instances of the specified dataclass types.
 
@@ -370,13 +363,12 @@ class HfArgumentParser(ArgumentParser):
             outputs.append(namespace)
         if return_remaining_strings:
             return (*outputs, remaining_args)
-        else:
-            if remaining_args:
-                raise ValueError(f"Some specified arguments are not used by the HfArgumentParser: {remaining_args}")
+        if remaining_args:
+            raise ValueError(f"Some specified arguments are not used by the HfArgumentParser: {remaining_args}")
 
-            return (*outputs,)
+        return (*outputs,)
 
-    def parse_dict(self, args: Dict[str, Any], allow_extra_keys: bool = False) -> Tuple[DataClass, ...]:
+    def parse_dict(self, args: dict[str, Any], allow_extra_keys: bool = False) -> tuple[DataClass, ...]:
         """
         Alternative helper method that does not use `argparse` at all, instead uses a dict and populating the dataclass
         types.
@@ -404,9 +396,7 @@ class HfArgumentParser(ArgumentParser):
             raise ValueError(f"Some keys are not used by the HfArgumentParser: {sorted(unused_keys)}")
         return tuple(outputs)
 
-    def parse_json_file(
-        self, json_file: Union[str, os.PathLike], allow_extra_keys: bool = False
-    ) -> Tuple[DataClass, ...]:
+    def parse_json_file(self, json_file: str | os.PathLike, allow_extra_keys: bool = False) -> tuple[DataClass, ...]:
         """
         Alternative helper method that does not use `argparse` at all, instead loading a json file and populating the
         dataclass types.
@@ -428,9 +418,7 @@ class HfArgumentParser(ArgumentParser):
         outputs = self.parse_dict(data, allow_extra_keys=allow_extra_keys)
         return tuple(outputs)
 
-    def parse_yaml_file(
-        self, yaml_file: Union[str, os.PathLike], allow_extra_keys: bool = False
-    ) -> Tuple[DataClass, ...]:
+    def parse_yaml_file(self, yaml_file: str | os.PathLike, allow_extra_keys: bool = False) -> tuple[DataClass, ...]:
         """
         Alternative helper method that does not use `argparse` at all, instead loading a yaml file and populating the
         dataclass types.

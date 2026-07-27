@@ -9,7 +9,7 @@ from video_dubbing.translate import LLMTranslator
 
 def load_translate_config(path: Path) -> dict[str, TranslateArgument] | None:
     if not path.is_file():
-        return
+        return None
     r = json.loads(path.read_text())
     assert isinstance(r, dict)
     return {k: TranslateArgument(**v) for k, v in r.items()}

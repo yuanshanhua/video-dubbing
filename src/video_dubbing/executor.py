@@ -2,8 +2,8 @@ import asyncio
 import concurrent.futures
 import threading
 import time
+from collections.abc import Coroutine
 from concurrent.futures import Future
-from typing import Coroutine, Set
 
 
 class AsyncBackgroundExecutor:
@@ -11,7 +11,7 @@ class AsyncBackgroundExecutor:
         self._loop: asyncio.AbstractEventLoop
         self._thread: threading.Thread
         self._start_event = threading.Event()
-        self._pending_futures: Set[Future] = set()
+        self._pending_futures: set[Future] = set()
         self._lock = threading.Lock()
 
         self._thread = threading.Thread(target=self._run_event_loop, daemon=True, name="AsyncBackgroundThread")

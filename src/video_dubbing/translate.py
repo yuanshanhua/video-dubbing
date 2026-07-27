@@ -1,7 +1,7 @@
 import asyncio
 import re
+from collections.abc import Callable
 from logging import Logger
-from typing import Callable
 
 from httpx import Timeout
 
@@ -10,7 +10,6 @@ from .llm import LLMClient
 from .log import logger
 from .srt import SRT
 from .utils import len_hybrid, run_tasks, sub_hybrid, task_with_context
-
 
 logger = logger.getChild("translate")
 

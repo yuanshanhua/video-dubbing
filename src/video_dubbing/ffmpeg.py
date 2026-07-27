@@ -1,12 +1,12 @@
 import asyncio
+import contextlib
 import math
 import os
+from collections.abc import Iterable
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Iterable
 
 from .log import logger
-
 
 logger = logger.getChild("ffmpeg")
 
@@ -310,9 +310,9 @@ async def add_hard_sub(
     logger.info(f"{subtitle} + {video} -> {output}")
 
     if subtitle.suffix == ".ass":
-        filter_arg = f"subtitles='{str(subtitle)}'"
+        filter_arg = f"subtitles='{subtitle!s}'"
     else:
-        filter_arg = f"subtitles='{str(subtitle)}':force_style={srt_style.replace(', ', ',')}"
+        filter_arg = f"subtitles='{subtitle!s}':force_style={srt_style.replace(', ', ',')}"
 
     command = ["ffmpeg", "-i", str(video), "-vf", filter_arg, "-c:v", video_codec]
 
@@ -491,25 +491,18 @@ async def _get_video_info(file: Path) -> VideoInfo:
 
     # 尝试从格式和流中获取比特率
     if "format" in info and "bit_rate" in info["format"]:
-        try:
+        with contextlib.suppress(ValueError, TypeError):
             result.bit_rate = int(info["format"]["bit_rate"])
-        except (ValueError, TypeError):
-            pass
 
     # 尝试获取视频时长
     if "format" in info and "duration" in info["format"]:
-        try:
+        with contextlib.suppress(ValueError, TypeError):
             result.duration = float(info["format"]["duration"])
-        except (ValueError, TypeError):
-            pass
 
     # 如果格式中没有有效比特率，尝试从视频流获取
-    if result.bit_rate is None and "streams" in info and len(info["streams"]) > 0:
-        if "bit_rate" in info["streams"][0]:
-            try:
-                result.bit_rate = int(info["streams"][0]["bit_rate"])
-            except (ValueError, TypeError):
-                pass
+    if result.bit_rate is None and "streams" in info and len(info["streams"]) > 0 and "bit_rate" in info["streams"][0]:
+        with contextlib.suppress(ValueError, TypeError):
+            result.bit_rate = int(info["streams"][0]["bit_rate"])
 
     # 获取分辨率和编码格式
     if "streams" in info and len(info["streams"]) > 0:

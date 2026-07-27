@@ -1,7 +1,6 @@
-from typing import Callable, Iterable, Iterator
+from collections.abc import Callable, Iterable, Iterator
 
 from .types import Segment, Word
-
 
 MIN_SEGMENT_DURATION = 1.0  # seconds
 
@@ -16,8 +15,7 @@ def split_segments(
     首先根据说话者分割, 然后根据标点符号分割.
     """
     tmp1 = _split_by_f(segments, sep, _split_segment_by_speaker)
-    tmp2 = _split_by_f(tmp1, sep, _split_segment_by_punctuation)
-    return tmp2
+    return _split_by_f(tmp1, sep, _split_segment_by_punctuation)
 
 
 F = Callable[[Segment], Iterable[tuple[int, int]]]

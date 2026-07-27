@@ -7,7 +7,7 @@ from datetime import timedelta
 from pathlib import Path
 
 
-class Color(object):
+class Color:
     """Represents a color in the ASS format."""
 
     def __init__(self, r, g, b, a=0):
@@ -30,7 +30,7 @@ class Color(object):
         if not v.startswith("&H"):
             raise ValueError("color must start with &H")
 
-        rest = int(v[2:], 16)
+        rest = int(v, 0)
 
         # AABBGGRR
         r = rest & 0xFF
@@ -47,9 +47,7 @@ class Color(object):
         return cls(r, g, b, a)
 
     def __repr__(self):
-        return "{name}(r=0x{r:02x}, g=0x{g:02x}, b=0x{b:02x}, a=0x{a:02x})".format(
-            name=self.__class__.__name__, r=self.r, g=self.g, b=self.b, a=self.a
-        )
+        return f"{self.__class__.__name__}(r=0x{self.r:02x}, g=0x{self.g:02x}, b=0x{self.b:02x}, a=0x{self.a:02x})"
 
 
 WHITE = Color(255, 255, 255)
@@ -58,7 +56,7 @@ BLACK = Color(0, 0, 0)
 Custom1 = Color(5, 255, 255)
 
 
-class _Field(object):
+class _Field:
     _last_creation_order = -1
 
     def __init__(self, name, type, default=None):
@@ -89,7 +87,7 @@ class _Field(object):
             return _Field.timedelta_to_ass(v)
 
         if isinstance(v, float):
-            return "{0:g}".format(v)
+            return f"{v:g}"
 
         if hasattr(v, "to_ass"):
             return v.to_ass()
@@ -118,9 +116,7 @@ class _Field(object):
         r, secs = divmod(r, 60)
         hours, mins = divmod(r, 60)
 
-        return "{hours:.0f}:{mins:02.0f}:{secs:02.0f}.{csecs:02}".format(
-            hours=hours, mins=mins, secs=secs, csecs=td.microseconds // 10000
-        )
+        return f"{hours:.0f}:{mins:02.0f}:{secs:02.0f}.{td.microseconds // 10000:02}"
 
     @staticmethod
     def timedelta_from_ass(v):
@@ -200,7 +196,7 @@ def add_metaclass(metaclass):
     return wrapper
 
 
-class Tag(object):
+class Tag:
     """A tag in ASS, e.g. {\\b1}. Multiple can be used like {\\b1\\i1}."""
 
     def __init__(self, name: str, params: list[str]):
@@ -215,7 +211,7 @@ class Tag(object):
         else:
             params = "(" + ",".join(_Field.dump(param) for param in self.params) + ")"
 
-        return "\\{name}{params}".format(name=self.name, params=params)
+        return f"\\{self.name}{params}"
 
     @staticmethod
     def strip_tags(parts, keep_drawing_commands=False):
@@ -242,7 +238,7 @@ class Tag(object):
 
 
 @add_metaclass(_WithFieldMeta)
-class ASS(object):
+class ASS:
     """An ASS document."""
 
     SCRIPT_INFO_HEADER = "[Script Info]"
@@ -411,23 +407,23 @@ class ASS(object):
     def save(self, path: str | Path):
         with open(path, mode="w", encoding="utf-8") as f:
             f.write(ASS.SCRIPT_INFO_HEADER + "\n")
-            for k in itertools.chain(
-                (field for field in self.DEFAULT_FIELD_ORDER if field in self.fields),
-                (field for field in self.fields if field not in self._field_mappings),
-            ):
-                f.write(k + ": " + _Field.dump(self.fields[k]) + "\n")
+            f.writelines(
+                k + ": " + _Field.dump(self.fields[k]) + "\n"
+                for k in itertools.chain(
+                    (field for field in self.DEFAULT_FIELD_ORDER if field in self.fields),
+                    (field for field in self.fields if field not in self._field_mappings),
+                )
+            )
             f.write("\n")
 
             f.write(ASS.STYLE_ASS_HEADER + "\n")
             f.write(ASS.FORMAT_TYPE + ": " + ", ".join(self.styles_field_order) + "\n")
-            for style in self.styles:
-                f.write(style.dump_with_type(self.styles_field_order) + "\n")
+            f.writelines(style.dump_with_type(self.styles_field_order) + "\n" for style in self.styles)
             f.write("\n")
 
             f.write(ASS.EVENTS_HEADER + "\n")
             f.write(ASS.FORMAT_TYPE + ": " + ", ".join(self.events_field_order) + "\n")
-            for event in self.events:
-                f.write(event.dump_with_type(self.events_field_order) + "\n")
+            f.writelines(event.dump_with_type(self.events_field_order) + "\n" for event in self.events)
             f.write("\n")
 
     def apply_style(self, style_name: str, placeholder: str = "<new-style>"):
@@ -444,11 +440,11 @@ class ASS(object):
 
 
 @add_metaclass(_WithFieldMeta)
-class _Line(object):
+class _Line:
     def __init__(self, *args, **kwargs):
         self.fields = {f.name: f.default for f in self._field_defs}
 
-        for k, v in zip(self.DEFAULT_FIELD_ORDER, args):
+        for k, v in zip(self.DEFAULT_FIELD_ORDER, args, strict=False):
             self.fields[k] = v
 
         for k, v in kwargs.items():
@@ -485,7 +481,7 @@ class _Line(object):
 
         fields = {}
 
-        for field_name, field in zip(field_order, parts):
+        for field_name, field in zip(field_order, parts, strict=False):
             if field_name in cls._field_mappings:
                 field = cls._field_mappings[field_name].parse(field)
             fields[field_name] = field

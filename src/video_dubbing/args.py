@@ -4,7 +4,6 @@ from dataclasses import dataclass, field
 from .utils import safe_glob
 from .version import __version__
 
-
 USAGE = f"""%(prog)s v{__version__} by @yuanshanhua
 建议首先使用 -gc 生成默认配置文件并进行自定义.
 而后可通过 -c <file> 加载配置文件, 并使用命令行参数覆盖必要的配置项.

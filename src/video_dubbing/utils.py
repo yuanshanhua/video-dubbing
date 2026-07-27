@@ -1,8 +1,8 @@
 import asyncio
 import unicodedata
+from collections.abc import Coroutine
 from pathlib import Path
-from typing import Any, Coroutine, TypeVar
-
+from typing import Any, TypeVar
 
 # 空格和标点符号(不包括连字符 Pc 和 Pd)
 SPACE = ("Zs", "Cc", "Po", "Ps", "Pe", "Pi", "Pf")

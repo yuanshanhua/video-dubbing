@@ -21,7 +21,7 @@ def assert_srt_text_equal(t: unittest.TestCase, srt1: SRT, srt2: SRT, msg: str):
 def assert_srt_time_match(t: unittest.TestCase, srt1: SRT, srt2: SRT, msg: str):
     """断言两个字幕的时间轴匹配"""
     t.assertEqual(len(srt1), len(srt2), msg + ": 行数不一致")
-    for e1, e2 in zip(srt1, srt2):
+    for e1, e2 in zip(srt1, srt2, strict=False):
         t.assertAlmostEqual(
             e1.start,
             e2.start,

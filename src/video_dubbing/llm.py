@@ -9,7 +9,6 @@ from openai.types.chat import ChatCompletionMessageParam
 
 from .log import logger
 
-
 logger = logger.getChild("llm")
 
 

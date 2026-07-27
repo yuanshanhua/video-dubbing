@@ -5,19 +5,18 @@
 """
 
 import os
-from typing import List, Optional, Union
+from typing import Union
 
 import numpy as np
 import torch
+from transformers import Pipeline
+from transformers.pipelines.pt_utils import PipelineIterator
 from whisper import Whisper, transcribe
 from whisper import load_model as load_whisper
 from whisperx import load_audio
 from whisperx.audio import SAMPLE_RATE
 from whisperx.types import SingleSegment, TranscriptionResult
 from whisperx.vad import VoiceActivitySegmentation, load_vad_model, merge_chunks
-
-from transformers import Pipeline
-from transformers.pipelines.pt_utils import PipelineIterator
 
 
 class FasterWhisperPipeline(Pipeline):
@@ -68,7 +67,7 @@ class FasterWhisperPipeline(Pipeline):
     def preprocess(self, input_, **kwargs):
         return input_
 
-    def _forward(self, input_tensors, **kwargs) -> dict[str, str | list]:  # type: ignore
+    def _forward(self, input_tensors, **kwargs) -> dict[str, str | list]:
         return transcribe(self.model, input_tensors["inputs"], **kwargs)
 
     def postprocess(self, model_outputs, **kwargs):
@@ -95,15 +94,14 @@ class FasterWhisperPipeline(Pipeline):
             dataset, num_workers=num_workers, batch_size=batch_size, collate_fn=stack
         )
         model_iterator = PipelineIterator(dataloader, self.forward, forward_params, loader_batch_size=batch_size)
-        final_iterator = PipelineIterator(model_iterator, self.postprocess, postprocess_params)
-        return final_iterator
+        return PipelineIterator(model_iterator, self.postprocess, postprocess_params)
 
     def transcribe(
         self,
-        audio: Union[str, np.ndarray],
-        batch_size: Optional[int] = None,
+        audio: str | np.ndarray,
+        batch_size: int | None = None,
         num_workers=0,
-        language: Optional[str] = None,
+        language: str | None = None,
         chunk_size=30,
         print_progress=False,
         combined_progress=False,
@@ -132,12 +130,11 @@ class FasterWhisperPipeline(Pipeline):
             offset=self._vad_params["vad_offset"],
         )
 
-        segments: List[SingleSegment] = []
+        segments: list[SingleSegment] = []
         total_segments = len(vad_segments)
         decode_options = self.options
         for idx, out in enumerate(
             self.__call__(
-                # type: ignore
                 inputs=data(audio, vad_segments),
                 num_workers=num_workers,
                 **decode_options,
@@ -147,8 +144,8 @@ class FasterWhisperPipeline(Pipeline):
                 base_progress = ((idx + 1) / total_segments) * 100
                 percent_complete = base_progress / 2 if combined_progress else base_progress
                 print(f"Progress: {percent_complete:.2f}%...")
-            text: str = out["text"]  # type: ignore
-            language = language or out["language"]  # type: ignore
+            text: str = out["text"]
+            language = language or out["language"]
             if decode_options["language"] is None:
                 decode_options["language"] = language
             if verbose:
@@ -163,7 +160,7 @@ class FasterWhisperPipeline(Pipeline):
                 }
             )
 
-        return {"segments": segments, "language": decode_options["language"]}  # type: ignore
+        return {"segments": segments, "language": decode_options["language"]}
 
 
 def load_model(
@@ -171,13 +168,13 @@ def load_model(
     device: str,
     device_index=0,
     compute_type="float16",
-    asr_options: Optional[dict] = None,
-    language: Optional[str] = None,
-    vad_model: Optional[VoiceActivitySegmentation] = None,
-    vad_options: Optional[dict] = None,
-    model: Optional[Whisper] = None,
+    asr_options: dict | None = None,
+    language: str | None = None,
+    vad_model: VoiceActivitySegmentation | None = None,
+    vad_options: dict | None = None,
+    model: Whisper | None = None,
     task="transcribe",
-    download_root: Optional[str] = None,
+    download_root: str | None = None,
     local_files_only=False,
     threads=4,
 ) -> FasterWhisperPipeline:
@@ -198,7 +195,7 @@ def load_model(
     model = model or load_whisper(
         name=whisper_arch,
         device=device,
-        download_root=download_root,  # type: ignore
+        download_root=download_root,
     )
 
     default_asr_options: dict = {

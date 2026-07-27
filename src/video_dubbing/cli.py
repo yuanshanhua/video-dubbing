@@ -24,7 +24,6 @@ from .translate import LLMTranslator, translate_srt
 from .tts import TTSProcessor
 from .version import __version__
 
-
 ArgTypes = [GeneralArgument, ASRArgument, TranslateArgument, TTSArgument, SubtitleArgument]
 
 
@@ -105,10 +104,7 @@ class VideoDubbing:
         output_dir = Path(self.general_args.output_dir) if self.general_args.output_dir else task_file.parent
         output_dir.mkdir(parents=True, exist_ok=True)
 
-        if self.general_args.asr:
-            asr_sub = output_dir / f"{task_name}.asr.srt"
-        else:
-            asr_sub = self.general_args.subtitles[index]
+        asr_sub = output_dir / f"{task_name}.asr.srt" if self.general_args.asr else self.general_args.subtitles[index]
 
         try:
             if self.general_args.asr:
@@ -157,8 +153,8 @@ class VideoDubbing:
 
         r = tr["segments"]
         if self.asr_args.align:  # split_segments 必须词级时间戳
-            r = split_segments(r, " ")  # type: ignore
-        SRT.from_segments(r).save(output_sub)  # type: ignore
+            r = split_segments(r, " ")
+        SRT.from_segments(r).save(output_sub)
 
     async def _run_translate_and_tts(
         self,
@@ -250,10 +246,7 @@ class VideoDubbing:
         tts_srt = output_file.with_suffix(".tts.srt")
 
         srt = SRT.from_file(translated_srt).correct_time()
-        if srt.sentences_percent() > 0.8:
-            srt = srt.merge_sentences(min_length=0)
-        else:
-            srt = srt.merge_by_length()
+        srt = srt.merge_sentences(min_length=0) if srt.sentences_percent() > 0.8 else srt.merge_by_length()
 
         if self.general_args.debug:
             srt.save(tts_srt)
@@ -301,7 +294,7 @@ class VideoDubbing:
             ass_p = sub.file.with_suffix(".ass")
             await convert_any(sub.file, ass_p)
             ass = ASS.from_file(ass_p)
-            ass.add_or_update_style(sub.style if sub.style else Style.get_default_kv_string())
+            ass.add_or_update_style(sub.style or Style.get_default_kv_string())
             ass.save(ass_p)
             # 清理 srt
             if not self.general_args.debug and sub.file not in self.general_args.subtitles:  # 避免删除输入文件

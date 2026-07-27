@@ -12,7 +12,7 @@ urls = { github = "https://github.com/yuanshanhua/video-dubbing" }
 readme = "README.md"
 license = "MIT"
 scripts = { dub = "video_dubbing.cli:cli" }
-requires-python = "~=3.11"
+requires-python = ">=3.11"
 classifiers = [
     "Programming Language :: Python :: 3",
     "License :: OSI Approved :: MIT License",
@@ -26,52 +26,17 @@ dependencies = [
     "rapidfuzz>=3.12.2",
 ]
 
-[project.optional-dependencies]
-asr = ["whisperx>=3.3.1"]
-npu = [
-    "whisperx>=3.3.1",
-    "openai-whisper",
-    "torch_npu==2.4.0",
-    "torch==2.4.0",
-    "torchaudio==2.4.0",
-    "decorator==5.1.1",
-    "psutil==6.1.1",
-    "numpy<2",           # cann 目前不兼容 numpy 2
-]
+[tool.pyright]
+include = ["src/", "tests/", "scripts/"]
+exclude = []
 
-[tool.uv]
-index-url = "http://mirrors.aliyun.com/pypi/simple"
+[tool.ty]
+src = { include = ["src/", "scripts/"], exclude = [] }
 
-[tool.uv.pip]
-index-url = "http://mirrors.aliyun.com/pypi/simple"
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["tests"]
+asyncio_mode = "strict"
 
-[tool.ruff]
-line-length = 119
-
-[tool.ruff.lint]
-# Never enforce `E501` (line length violations).
-ignore = ["C901", "E501", "E741", "F402", "F823"]
-select = ["C", "E", "F", "I", "W"]
-
-# Ignore import violations in all `__init__.py` files.
-[tool.ruff.lint.per-file-ignores]
-"__init__.py" = ["E402", "F401", "F403", "F811"]
-"src/transformers/file_utils.py" = ["F401"]
-"src/transformers/utils/dummy_*.py" = ["F401"]
-
-[tool.ruff.lint.isort]
-lines-after-imports = 2
-known-first-party = ["transformers"]
-
-[tool.ruff.format]
-# Like Black, use double quotes for strings.
-quote-style = "double"
-
-# Like Black, indent with spaces, rather than tabs.
-indent-style = "space"
-
-# Like Black, respect magic trailing commas.
-skip-magic-trailing-comma = false
-
-# Like Black, automatically detect the appropriate line ending.
-line-ending = "auto"
+[dependency-groups]
+dev = ["pyright>=1.1.411", "pytest>=9.1.1", "ruff>=0.16.0", "ty>=0.0.63"]

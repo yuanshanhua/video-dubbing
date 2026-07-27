@@ -3,9 +3,10 @@ import html
 import os
 import shutil
 import time
+from collections.abc import Iterable
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Iterable, no_type_check
+from typing import no_type_check
 
 from aiolimiter import AsyncLimiter
 from edge_tts import Communicate
@@ -14,7 +15,6 @@ from rapidfuzz import fuzz
 from .ffmpeg import AudioSegment, concat_tts_segs, convert_to_wav, get_audio_duration, get_audio_snippet
 from .log import logger
 from .srt import SRT, SRTEntry
-
 
 logger = logger.getChild("tts")
 

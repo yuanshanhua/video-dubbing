@@ -1,11 +1,11 @@
+from collections.abc import Callable, Iterable
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Callable, Iterable, overload
+from typing import overload
 
 from .log import logger
 from .types import Segment
 from .utils import len_hybrid, sub_hybrid
-
 
 logger = logger.getChild("srt")
 
@@ -63,7 +63,7 @@ class SRT:
         读取 srt 文件. 仅适用于格式正确的简单 srt 文件.
         """
         logger.info(f"{path}")
-        with open(path, "r", encoding="utf-8") as f:
+        with open(path, encoding="utf-8") as f:
             lines = f.readlines()
         entries = []
         finish = True
@@ -118,6 +118,7 @@ class SRT:
         for entry in self.entries:
             if entry.index == index:
                 return entry
+        return None
 
     def with_texts(self, texts: list[str]) -> "SRT":
         """
@@ -135,7 +136,7 @@ class SRT:
                     e.end,
                     text,
                 )
-                for e, text in zip(self, texts)
+                for e, text in zip(self, texts, strict=False)
             ]
         )
 
